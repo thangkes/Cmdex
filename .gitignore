@@ -1,0 +1,16 @@
+# build output
+/build/bin/
+/dist/
+*.syso
+
+# never commit a user's library or test databases
+*.db
+*.db-shm
+*.db-wal
+/tmp/
+
+# local tooling
+/.claude/
+.vscode/
+.idea/
+*.log

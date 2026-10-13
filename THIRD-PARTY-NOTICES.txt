@@ -1,0 +1,15 @@
+Cmdex includes or links the following open-source software. Each keeps its
+own license; the full texts are at the addresses given.
+
+Wails v2 (MIT) ............................ https://github.com/wailsapp/wails
+go-webview2 (MIT) ......................... https://github.com/wailsapp/go-webview2
+xterm.js and @xterm/addon-fit (MIT) ....... https://github.com/xtermjs/xterm.js
+  (bundled in frontend/vendor; its license is in frontend/vendor/LICENSE-xterm.txt)
+modernc.org/sqlite (BSD-3-Clause) ......... https://gitlab.com/cznic/sqlite
+SQLite (public domain) .................... https://sqlite.org
+golang.org/x/crypto, x/sys, x/text, x/net (BSD-3-Clause) https://go.googlesource.com
+go.bug.st/serial (BSD-3-Clause) ........... https://github.com/bugst/go-serial
+go-keyring (MIT) .......................... https://github.com/zalando/go-keyring
+go-pty (MIT) .............................. https://github.com/aymanbagabas/go-pty
+creack/pty (MIT) .......................... https://github.com/creack/pty
+The Go standard library (BSD-3-Clause) .... https://go.dev

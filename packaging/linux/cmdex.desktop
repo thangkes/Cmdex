@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Cmdex
+Comment=Command library, builder and terminal (SSH, Telnet, serial)
+Comment[vi]=Thư viện lệnh, dựng lệnh và terminal (SSH, Telnet, COM)
+Exec=cmdex
+Icon=cmdex
+Terminal=false
+Categories=Development;System;TerminalEmulator;Network;
+Keywords=terminal;ssh;telnet;serial;command;shell;

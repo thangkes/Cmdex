@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cmdex</title>
+<link rel="stylesheet" href="vendor/xterm.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <header class="top">
+    <div class="brand">
+      <svg width="26" height="26" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="24" height="20" rx="4"></rect><path d="M8 11l4 3-4 3"></path><path d="M15 18h5"></path></svg>
+      <span class="logo">cmdex</span>
+      <span class="ver" id="ver"></span>
+    </div>
+    <nav class="nav" aria-label="Main">
+      <button type="button" data-view="work" data-i18n="nav.work"></button>
+      <button type="button" data-view="collect"><span data-i18n="nav.collect"></span><span class="badge" id="collectBadge" hidden></span></button>
+      <button type="button" data-view="library" data-i18n="nav.library"></button>
+    </nav>
+    <button type="button" class="update" id="updateBtn" hidden></button>
+    <span class="env" id="env"></span>
+    <div class="themes" id="themes" role="group"></div>
+    <div class="seg" role="group" id="langSeg">
+      <button type="button" data-lang="vi">VI</button>
+      <button type="button" data-lang="en">EN</button>
+    </div>
+  </header>
+
+  <main id="view-work" class="view work">
+    <section class="left">
+      <div class="panel conns">
+        <div class="row between">
+          <h2 data-i18n="conn.title"></h2>
+          <button type="button" class="btn small" id="newConnBtn" data-i18n="conn.new"></button>
+        </div>
+        <div class="chips" id="profiles"></div>
+        <form class="connform" id="connForm" hidden></form>
+      </div>
+      <div class="terminal">
+        <div class="tabs" role="tablist" id="tabs"></div>
+        <div class="termhost" id="termhost">
+          <div class="termempty" id="termEmpty">
+            <p data-i18n="term.empty"></p>
+            <button type="button" class="btn pri" id="openLocalBtn"></button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="right panel">
+      <label for="q" class="ask" data-i18n="ask.label"></label>
+      <div class="searchbox">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="9" r="6"></circle><path d="M14 14l4 4"></path></svg>
+        <input id="q" type="text" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="row wrap">
+        <div class="seg" role="group" id="modeSeg">
+          <button type="button" data-mode="search" data-i18n="mode.search"></button>
+          <button type="button" data-mode="explain" data-i18n="mode.explain"></button>
+        </div>
+        <span class="hint" id="modeHint"></span>
+      </div>
+      <div id="searchPane"></div>
+      <div id="explainPane" hidden></div>
+    </section>
+  </main>
+
+  <main id="view-collect" class="view collect" hidden></main>
+  <main id="view-library" class="view library" hidden></main>
+
+  <footer class="status">
+    <span id="dbPath"></span>
+    <span id="libCount"></span>
+    <span id="statusMsg" role="status"></span>
+  </footer>
+</div>
+<div class="modal" id="modal" hidden><div class="dialog" role="dialog" aria-modal="true" id="dialog"></div></div>
+
+<script src="vendor/xterm.js"></script>
+<script src="vendor/addon-fit.js"></script>
+<script src="themes.js"></script>
+<script src="ui.js"></script>
+<script src="explain.js"></script>
+<script src="work.js"></script>
+<script src="collect.js"></script>
+<script src="library.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

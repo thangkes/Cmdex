@@ -1,0 +1,54 @@
+{
+  "name": "common",
+  "version": 1,
+  "commands": [
+    {"name": {"en": "Sign in with SSH", "vi": "Đăng nhập SSH"}, "platform": "both", "shell": "ssh", "category": {"en": "Network", "vi": "Mạng"}, "template": "ssh -p {port} {user}@{host}",
+     "purpose": {"en": "Opens a command line on a remote machine.", "vi": "Mở dòng lệnh trên máy từ xa."}, "notes": {"en": "Save it as a profile under Connections to open it with one click.", "vi": "Lưu thành profile ở mục Kết nối để mở bằng một cú bấm."}, "tags": ["ssh", "remote", "từ xa", "đăng nhập"],
+     "params": [{"key": "port", "type": "number", "default": "22", "description": {"en": "SSH port", "vi": "Cổng SSH"}}, {"key": "user", "type": "text", "default": "root", "description": {"en": "User", "vi": "Tài khoản"}, "required": true}, {"key": "host", "type": "host", "default": "", "description": {"en": "Server", "vi": "Máy chủ"}, "required": true}]},
+    {"name": {"en": "SSH tunnel to a remote port", "vi": "Tunnel SSH tới cổng ở xa"}, "platform": "both", "shell": "ssh", "category": {"en": "Network", "vi": "Mạng"}, "template": "ssh -N -L {local}:{target}:{port} {user}@{host}",
+     "purpose": {"en": "Makes a remote service reachable at localhost:{local}.", "vi": "Đưa dịch vụ ở xa về địa chỉ localhost:{local}."}, "notes": {"en": "Example: reach a database that only listens inside the server.", "vi": "Ví dụ: truy cập database chỉ mở bên trong máy chủ."}, "tags": ["ssh", "tunnel", "port forward"],
+     "params": [{"key": "local", "type": "number", "default": "15432", "description": {"en": "Port on this computer", "vi": "Cổng trên máy này"}, "required": true}, {"key": "target", "type": "host", "default": "127.0.0.1", "description": {"en": "Host seen from the server", "vi": "Máy đích (nhìn từ máy chủ)"}, "required": true}, {"key": "port", "type": "number", "default": "5432", "description": {"en": "Remote port", "vi": "Cổng ở xa"}, "required": true}, {"key": "user", "type": "text", "default": "root", "description": {"en": "User", "vi": "Tài khoản"}, "required": true}, {"key": "host", "type": "host", "default": "", "description": {"en": "Server", "vi": "Máy chủ"}, "required": true}]},
+    {"name": {"en": "Forget a server's SSH key", "vi": "Xóa khóa SSH cũ của máy chủ"}, "platform": "both", "shell": "ssh", "category": {"en": "Network", "vi": "Mạng"}, "template": "ssh-keygen -R {host}",
+     "purpose": {"en": "Removes a host from known_hosts after it was reinstalled.", "vi": "Xóa máy khỏi known_hosts sau khi máy chủ được cài lại."}, "notes": {"en": "Only when you know why the key changed — otherwise someone may be intercepting.", "vi": "Chỉ làm khi biết rõ vì sao khóa đổi — nếu không, có thể đang bị chặn giữa đường."}, "tags": ["ssh", "known_hosts", "key"],
+     "params": [{"key": "host", "type": "host", "default": "", "description": {"en": "Server", "vi": "Máy chủ"}, "required": true}]}
+  ],
+  "explain": [
+    {"cmd": "sudo", "summary": {"en": "Runs the command after it as administrator (root)", "vi": "Chạy lệnh đứng sau với quyền quản trị (root)"}, "flags": {"-u": {"text": {"en": "as user {v}", "vi": "dưới tên {v}"}, "value": true}, "-i": {"text": {"en": "open a root login shell", "vi": "mở shell của root"}}, "-E": {"text": {"en": "keep your environment", "vi": "giữ biến môi trường"}}}},
+    {"cmd": "echo", "summary": {"en": "Prints text", "vi": "In chuỗi ra màn hình"}, "args": [{"en": "text", "vi": "chuỗi"}]}
+  ],
+  "synonyms": {
+    "cong": ["port"], "port": ["cong"], "ports": ["port", "cong"],
+    "dang mo": ["listen", "listening"], "lang nghe": ["listen"], "open": ["listen", "dang mo"],
+    "xem": ["show", "list"], "liet ke": ["list"], "show": ["xem"], "list": ["liet ke"],
+    "tien trinh": ["process", "pid"], "process": ["tien trinh"], "chuong trinh": ["process", "app"],
+    "ket noi": ["connect", "ping"], "kiem tra": ["test", "check", "ping"], "check": ["kiem tra"],
+    "tu xa": ["ssh", "remote"], "dang nhap": ["ssh", "login"], "may chu": ["host", "server"], "server": ["may chu"],
+    "xoa": ["delete", "remove"], "delete": ["xoa"], "remove": ["xoa"],
+    "dich vu": ["service"], "service": ["dich vu"], "khoi dong lai": ["restart", "reboot"], "restart": ["khoi dong lai"],
+    "o dia": ["disk"], "dung luong": ["disk", "space"], "day o": ["disk", "space"], "disk": ["o dia"], "space": ["dung luong"],
+    "ram": ["memory"], "bo nho": ["memory", "ram"], "memory": ["ram"],
+    "tim": ["find", "search"], "find": ["tim"], "search": ["tim"],
+    "file": ["tep"], "thu muc": ["folder", "directory"], "folder": ["thu muc"],
+    "mang": ["network"], "network": ["mang"], "ten mien": ["dns", "domain"], "domain": ["ten mien", "dns"],
+    "nhat ky": ["log"], "log": ["nhat ky"], "loi": ["error"], "error": ["loi"],
+    "cai dat": ["install"], "install": ["cai dat"], "cap nhat": ["update", "upgrade"], "update": ["cap nhat"],
+    "phien ban": ["version"], "version": ["phien ban"], "mat khau": ["password"], "password": ["mat khau"],
+    "tuong lua": ["firewall"], "firewall": ["tuong lua"], "sao chep": ["copy"], "copy": ["sao chep"],
+    "nen": ["tar", "zip", "archive"], "giai nen": ["extract", "unzip", "tar"], "quyen": ["permission"], "permission": ["quyen"],
+    "nguoi dung": ["user"], "user": ["nguoi dung"], "cham": ["cpu", "slow"], "slow": ["cham", "cpu"]
+  },
+  "rules": [
+    {"kind": "ignore", "match": "cd, ls, dir, cls, clear, exit, pwd, history, whoami, logout, ll, la"},
+    {"kind": "category", "match": "ping, tracert, tracepath, traceroute, nslookup, dig, ipconfig, ip, ss, netstat, arp, route, nc, curl, curl.exe, wget, test-netconnection, resolve-dnsname, netsh, nmcli, ufw, tcpdump", "result": {"en": "Network", "vi": "Mạng"}},
+    {"kind": "category", "match": "ssh, scp, rsync, sftp, ssh-keygen, ssh-copy-id", "result": {"en": "Network", "vi": "Mạng"}},
+    {"kind": "category", "match": "systemctl, service, sc, get-service, restart-service, start-service, stop-service, net", "result": {"en": "Services", "vi": "Dịch vụ"}},
+    {"kind": "category", "match": "journalctl, tail, get-winevent, dmesg", "result": {"en": "Logs", "vi": "Nhật ký"}},
+    {"kind": "category", "match": "ps, top, htop, kill, pkill, pgrep, tasklist, taskkill, get-process, stop-process", "result": {"en": "Processes", "vi": "Tiến trình"}},
+    {"kind": "category", "match": "df, du, lsblk, mount, umount, chkdsk, get-psdrive, fdisk", "result": {"en": "Disk", "vi": "Ổ đĩa"}},
+    {"kind": "category", "match": "apt, apt-get, dnf, yum, snap, winget, choco, pip, npm", "result": {"en": "Packages", "vi": "Phần mềm"}},
+    {"kind": "category", "match": "docker, docker-compose, kubectl, podman", "result": {"en": "Docker", "vi": "Docker"}},
+    {"kind": "category", "match": "mysql, mysqldump, psql, sqlcmd, mongosh, redis-cli", "result": {"en": "Database", "vi": "Cơ sở dữ liệu"}},
+    {"kind": "category", "match": "git", "result": {"en": "Git", "vi": "Git"}},
+    {"kind": "secret", "match": "--pass, --secret, -Password, -Credential, --pin"}
+  ]
+}
