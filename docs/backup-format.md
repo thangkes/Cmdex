@@ -1,0 +1,112 @@
+# Cmdex backup file (`cmdex-backup`, version 1)
+
+[English](#english) · [Tiếng Việt](#tiếng-việt)
+
+## English
+
+A backup is one UTF-8 JSON file holding a whole library. Make one with **Library ▸ Export… ▸ Full backup** or `cmdex --export backup.json`; load it with **Library ▸ Import…** or `cmdex --import backup.json [--replace]`. You may also write or edit one by hand: every section except `format` and `version` may be left out or empty. A machine-readable description is in [`cmdex-backup.schema.json`](cmdex-backup.schema.json).
+
+Not in a backup, on purpose:
+- **passwords and key passphrases**, which stay in the system keychain;
+- the read positions in this computer's shell history files.
+
+Collected command lines are stored with secrets already masked (`••••••`).
+
+```jsonc
+{
+  "format": "cmdex-backup",          // required, exactly this
+  "version": 1,                      // required
+  "exported": "2026-10-14T01:00:00Z",
+  "app": "0.1.1",                    // Cmdex version that wrote it (informational)
+
+  "commands": [{
+    "name": "Ping a host",
+    "platform": "windows",           // windows | linux | both
+    "shell": "cmd",
+    "category": "Network",
+    "template": "ping {host} -n {count}",   // {parameters} in curly braces
+    "purpose": "Checks a host answers",
+    "notes": "",
+    "danger": 0,                     // 0 run at once, 1 ask first, 2 copy only
+    "tags": ["ping"],
+    "envs": ["Lab"],
+    "params": [{"key": "host", "type": "host", "default": "8.8.8.8", "description": "Host", "required": true}],
+    "uses": 12,                      // times run (ranks it higher)
+    "source": "user",                // user | collected | pack:<name>
+    "created": 1792000000,           // Unix seconds
+    "updated": 1792000000            // newer copy wins when merging
+  }],
+
+  "explain": [{
+    "cmd": "ping",                   // program name, lower case, no path or .exe
+    "summary": "Sends ICMP echo",
+    "flags": {"-n": {"text": "send {v} requests", "value": true}},   // {v} = the option's value
+    "letters": {"a": "all"},         // single letters that combine, like -ano
+    "args": ["target host"],         // positional arguments in order
+    "source": "user"                 // user | help | pack:<name>
+  }],
+
+  "synonyms": {"cong": ["port"]},    // normalized word (no accents) -> alternatives
+
+  "rules": [
+    {"kind": "category", "match": "ping, tracert", "result": "Network"},
+    {"kind": "ignore",   "match": "cd, ls"},
+    {"kind": "secret",   "match": "--token"}
+  ],
+
+  "connections": [{
+    "kind": "ssh",                   // ssh | telnet | serial
+    "name": "web-01", "host": "10.0.0.10", "port": 22, "user": "root",
+    "auth": "key",                   // key | password | agent
+    "keyPath": "~/.ssh/id_ed25519",
+    "serial": {"port": "COM3", "baud": 9600, "dataBits": 8, "parity": "none", "stopBits": "1", "lineEnd": "cr"}
+  }],
+
+  "collected": [{
+    "signature": "ping {host} -n {count}",
+    "category": "Network", "source": "powershell",
+    "status": "pending",             // pending | added | merged | ignored
+    "secret": false,
+    "firstSeen": 1792000000, "lastSeen": 1792000500,
+    "target": {"platform": "windows", "template": "ping {host} -n {count}"},   // for added / merged
+    "variants": [{"raw": "ping 10.0.0.1 -n 4", "count": 3}]
+  }],
+
+  "settings": {"lang": "vi", "theme": "graphite", "collect.enabled": "1"}
+}
+```
+
+### How importing works
+
+| | Merge (default) | Replace everything |
+|---|---|---|
+| Commands (same platform + template) | the copy edited more recently wins; use counts take the larger | the file's |
+| Explanations | yours (`source: user`) are kept | the file's |
+| Rules, connections, collected groups | added if missing | the file's |
+| Collected run counts | the larger one | the file's |
+| Settings | taken from the file | taken from the file |
+
+Importing the same file twice changes nothing the second time. A Cmdex database file (`.db`) can be imported the same way; it is read from a copy and never changed.
+
+## Tiếng Việt
+
+File sao lưu là một file JSON (UTF-8) chứa toàn bộ thư viện.
+- **Tạo:** **Thư viện lệnh ▸ Xuất… ▸ Sao lưu đầy đủ**, hoặc `cmdex --export backup.json`.
+- **Nạp:** **Thư viện lệnh ▸ Nhập…**, hoặc `cmdex --import backup.json [--replace]`.
+- **Tự viết hoặc sửa bằng tay được:** ngoài `format` và `version`, mọi phần khác có thể bỏ trống. Cấu trúc chính xác nằm trong ví dụ ở phần tiếng Anh phía trên và trong [`cmdex-backup.schema.json`](cmdex-backup.schema.json).
+
+Cố ý **không** có trong file sao lưu:
+- mật khẩu và passphrase, vì chúng nằm trong kho bảo mật của hệ điều hành;
+- vị trí đã đọc trong file lịch sử shell của máy cũ.
+
+Lệnh thu thập được lưu ở dạng đã che bí mật (`••••••`).
+
+**Hai chế độ khi nạp:**
+- **Gộp:**
+  - Giữ dữ liệu đang có và thêm phần thiếu.
+  - Lệnh trùng (cùng nền tảng và mẫu lệnh) thì bản được sửa gần đây hơn thắng; số lần dùng lấy số lớn hơn.
+  - Giải nghĩa bạn tự viết được giữ nguyên.
+  - Nạp lại cùng một file lần nữa không thay đổi gì.
+- **Thay thế toàn bộ:** xóa sạch thư viện hiện tại rồi nạp file.
+
+File database `.db` cũng nạp được theo cùng cách. Cmdex đọc từ một bản chép nên file gốc không bị thay đổi.

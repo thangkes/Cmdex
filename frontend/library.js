@@ -52,8 +52,8 @@ async function renderLibrary() {
   list.appendChild(h("div", { class: "row between wrap" }, h("h2", {}, t("lib.title")), h("span", { class: "muted" }, t("lib.count", { n: Library.cmds.length }))));
   list.appendChild(h("div", { class: "row wrap" },
     h("button", { type: "button", class: "btn pri small", onclick: () => Library.newFromText("") }, t("lib.new")),
-    h("button", { type: "button", class: "btn small", onclick: importPack }, t("lib.import")),
-    h("button", { type: "button", class: "btn small", onclick: exportPack }, t("lib.export")),
+    h("button", { type: "button", class: "btn small", onclick: importAny }, t("lib.import")),
+    h("button", { type: "button", class: "btn small", onclick: exportMenu }, t("lib.export")),
     h("button", { type: "button", class: "btn ghost small", onclick: reimport }, t("lib.reimport"))));
   list.appendChild(filter);
   list.appendChild(items);
@@ -165,17 +165,54 @@ async function explainDialog(e) {
   catch (err) { setStatus(errText(err), true); }
 }
 
-async function importPack() {
+// importAny loads a full backup (.json), a Cmdex database (.db) or a pack:
+// it shows what is in the file and asks whether to merge or replace.
+async function importAny() {
+  let pv;
+  try { pv = await api.PickImport(); } catch (e) { setStatus(errText(e), true); return; }
+  if (!pv || !pv.path) return;
+  const body = [
+    h("p", { class: "soft" }, t("io.kind." + pv.kind)),
+    h("p", { class: "mono", style: { wordBreak: "break-all", fontSize: "12px", margin: 0 } }, pv.path),
+    h("ul", { class: "soft", style: { margin: 0, paddingLeft: "18px", lineHeight: 1.7 } },
+      h("li", {}, t("io.count.commands", { n: pv.commands })),
+      h("li", {}, t("io.count.explains", { n: pv.explains })),
+      pv.kind !== "pack" ? [h("li", {}, t("io.count.connections", { n: pv.connections })), h("li", {}, t("io.count.collected", { n: pv.collected }))] : null),
+    pv.exported ? h("p", { class: "note" }, t("io.exported", { when: new Date(pv.exported).toLocaleString(), app: pv.app || "?" })) : null,
+    pv.kind !== "pack" ? h("p", { class: "note" }, t("io.modes")) : null,
+  ];
+  const buttons = [{ label: t("common.cancel"), value: null }];
+  if (pv.kind !== "pack") buttons.push({ label: t("io.replace"), danger: true, value: "replace" });
+  buttons.push({ label: t("io.merge"), pri: true, value: "merge" });
+  const mode = await dialog(t("io.importTitle"), body, buttons);
+  if (!mode) return;
+  if (mode === "replace" && !await confirmDialog(t("io.replace"), t("io.replaceQ"), t("io.replace"), true)) return;
   try {
-    const r = await api.ImportFile();
-    if (r && (r.added || r.skipped || r.explains)) setStatus(t("lib.imported", { a: r.added, s: r.skipped }));
-    renderLibrary();
+    const r = await api.ImportFrom(pv.path, mode === "replace");
+    await dialog(t("io.doneTitle"), h("p", { class: "soft" }, t("io.done", r)), [{ label: t("common.ok"), pri: true, value: true }]);
+    if (pv.kind !== "pack") location.reload(); // language, theme and every list may have changed
+    else renderLibrary();
   } catch (e) { setStatus(errText(e), true); }
 }
 
-async function exportPack() {
-  try { const p = await api.ExportFile(); if (p) setStatus(t("lib.exported", { p })); }
-  catch (e) { setStatus(errText(e), true); }
+async function exportMenu() {
+  const kind = await dialog(t("io.exportTitle"), [
+    h("p", { class: "soft" }, h("b", {}, t("io.exp.backup")), " — ", t("io.exp.backupD")),
+    h("p", { class: "soft" }, h("b", {}, t("io.exp.db")), " — ", t("io.exp.dbD")),
+    h("p", { class: "soft" }, h("b", {}, t("io.exp.pack")), " — ", t("io.exp.packD")),
+    h("p", { class: "note" }, t("io.noPasswords")),
+  ], [
+    { label: t("common.cancel"), value: null },
+    { label: t("io.exp.pack"), value: "pack" },
+    { label: t("io.exp.db"), value: "db" },
+    { label: t("io.exp.backup"), pri: true, value: "backup" },
+  ]);
+  if (!kind) return;
+  try {
+    const fn = { backup: api.ExportBackupFile, db: api.ExportDatabaseFile, pack: api.ExportPackFile }[kind];
+    const path = await fn();
+    if (path) setStatus(t("lib.exported", { p: path }));
+  } catch (e) { setStatus(errText(e), true); }
 }
 
 async function reimport() {

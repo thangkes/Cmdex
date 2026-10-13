@@ -45,6 +45,10 @@ go build -tags desktop,production,webkit2_41 -o cmdex .
 
 For interface work without the desktop shell: `CMDEX_DB=./tmp/cmdex.db go run ./tools/devserve`, then open http://127.0.0.1:34115.
 
+### Moving to another computer
+
+**Library ▸ Export…** saves a full backup (`.json`: commands, explanations, rules, synonyms, connections, collected lines, settings — never passwords) or a copy of the database file (`.db`). **Library ▸ Import…** loads either one, merging into your library or replacing it. From a terminal: `cmdex --export backup.json`, `cmdex --import backup.json [--replace]`. The file format is described in [docs/backup-format.md](docs/backup-format.md).
+
 ### Packs
 
 A pack is a JSON file of commands, explanations, synonyms and rules; texts may be plain strings or `{"en": "…", "vi": "…"}`. See [`packs/`](packs) for the starter packs. Library ▸ Import / Export moves your library between computers.
@@ -77,5 +81,9 @@ License: [MIT](LICENSE).
 - Lệnh thu thập được che bí mật trước khi lưu; tắt được từng nguồn thu thập.
 - Tra trợ giúp không bao giờ chạy chương trình lạ: chỉ đọc `man`, `Get-Help` của PowerShell, và `/?` với công cụ hệ thống của Windows trong System32.
 - Bản cập nhật tải từ Releases của repo này và chỉ được cài khi mã SHA-256 khớp với `SHA256SUMS.txt` đã công bố.
+
+### Chuyển sang máy khác
+
+**Thư viện lệnh ▸ Xuất…** lưu bản sao lưu đầy đủ (`.json`: lệnh, giải nghĩa, quy tắc, từ đồng nghĩa, kết nối, lệnh thu thập, cài đặt — không bao giờ có mật khẩu) hoặc bản chép file database (`.db`). **Thư viện lệnh ▸ Nhập…** nạp lại một trong hai, chọn gộp hoặc thay thế toàn bộ. Dùng dòng lệnh: `cmdex --export backup.json`, `cmdex --import backup.json [--replace]`. Cấu trúc file mô tả trong [docs/backup-format.md](docs/backup-format.md).
 
 Giấy phép: [MIT](LICENSE).

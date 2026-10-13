@@ -56,6 +56,9 @@ func transferCLI(out io.Writer, op, file string, replace bool) int {
 		if s, err = store.Open(path); err == nil {
 			defer s.Close()
 			a := &App{store: s}
+			if s.Setting("packs.imported", "") == "" {
+				a.importStarter() // a library opened for the first time starts like in the app
+			}
 			switch op {
 			case "--export":
 				if strings.EqualFold(filepath.Ext(file), ".db") {

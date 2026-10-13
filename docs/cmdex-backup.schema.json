@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/thangkes/Cmdex/blob/main/docs/cmdex-backup.schema.json",
+  "title": "Cmdex backup",
+  "type": "object",
+  "required": ["format", "version"],
+  "properties": {
+    "format": {"const": "cmdex-backup"},
+    "version": {"const": 1},
+    "exported": {"type": "string", "format": "date-time"},
+    "app": {"type": "string"},
+    "commands": {"type": "array", "items": {"$ref": "#/$defs/command"}},
+    "explain": {"type": "array", "items": {"$ref": "#/$defs/explain"}},
+    "synonyms": {"type": "object", "additionalProperties": {"type": "array", "items": {"type": "string"}}},
+    "rules": {"type": "array", "items": {"$ref": "#/$defs/rule"}},
+    "connections": {"type": "array", "items": {"$ref": "#/$defs/connection"}},
+    "collected": {"type": "array", "items": {"$ref": "#/$defs/collected"}},
+    "settings": {"type": "object", "additionalProperties": {"type": "string"}}
+  },
+  "$defs": {
+    "platform": {"enum": ["windows", "linux", "both"]},
+    "param": {
+      "type": "object",
+      "required": ["key"],
+      "properties": {
+        "key": {"type": "string", "pattern": "^[A-Za-z0-9_-]+$"},
+        "type": {"enum": ["text", "number", "host", "path", "secret", ""]},
+        "default": {"type": "string"},
+        "description": {"type": "string"},
+        "required": {"type": "boolean"}
+      }
+    },
+    "command": {
+      "type": "object",
+      "required": ["name", "template"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "platform": {"$ref": "#/$defs/platform"},
+        "shell": {"type": "string"},
+        "category": {"type": "string"},
+        "template": {"type": "string", "minLength": 1},
+        "purpose": {"type": "string"},
+        "notes": {"type": "string"},
+        "danger": {"enum": [0, 1, 2]},
+        "tags": {"type": "array", "items": {"type": "string"}},
+        "envs": {"type": "array", "items": {"type": "string"}},
+        "params": {"type": "array", "items": {"$ref": "#/$defs/param"}},
+        "uses": {"type": "integer", "minimum": 0},
+        "source": {"type": "string"},
+        "created": {"type": "integer"},
+        "updated": {"type": "integer"}
+      }
+    },
+    "explain": {
+      "type": "object",
+      "required": ["cmd"],
+      "properties": {
+        "cmd": {"type": "string", "minLength": 1},
+        "summary": {"type": "string"},
+        "flags": {"type": "object", "additionalProperties": {
+          "type": "object", "properties": {"text": {"type": "string"}, "value": {"type": "boolean"}}}},
+        "letters": {"type": "object", "additionalProperties": {"type": "string"}},
+        "args": {"type": "array", "items": {"type": "string"}},
+        "source": {"type": "string"}
+      }
+    },
+    "rule": {
+      "type": "object",
+      "required": ["kind", "match"],
+      "properties": {
+        "kind": {"enum": ["category", "ignore", "secret"]},
+        "match": {"type": "string"},
+        "result": {"type": "string"}
+      }
+    },
+    "connection": {
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind": {"enum": ["ssh", "telnet", "serial"]},
+        "name": {"type": "string"},
+        "host": {"type": "string"},
+        "port": {"type": "integer", "minimum": 0, "maximum": 65535},
+        "user": {"type": "string"},
+        "auth": {"enum": ["key", "password", "agent", ""]},
+        "keyPath": {"type": "string"},
+        "serial": {"type": "object", "properties": {
+          "port": {"type": "string"}, "baud": {"type": "integer"}, "dataBits": {"type": "integer"},
+          "parity": {"enum": ["none", "even", "odd", ""]}, "stopBits": {"enum": ["1", "2", ""]},
+          "lineEnd": {"enum": ["cr", "lf", "crlf", ""]}}}
+      }
+    },
+    "collected": {
+      "type": "object",
+      "required": ["signature"],
+      "properties": {
+        "signature": {"type": "string"},
+        "category": {"type": "string"},
+        "source": {"type": "string"},
+        "status": {"enum": ["pending", "added", "merged", "ignored"]},
+        "secret": {"type": "boolean"},
+        "firstSeen": {"type": "integer"},
+        "lastSeen": {"type": "integer"},
+        "target": {"type": "object", "properties": {"platform": {"$ref": "#/$defs/platform"}, "template": {"type": "string"}}},
+        "variants": {"type": "array", "items": {"type": "object", "properties": {"raw": {"type": "string"}, "count": {"type": "integer"}}}}
+      }
+    }
+  }
+}
