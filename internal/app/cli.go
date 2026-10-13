@@ -7,16 +7,20 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
+	"github.com/thangkes/cmdex/internal/store"
 	"github.com/thangkes/cmdex/internal/update"
 )
 
 // CLI handles command-line use; it reports whether args were for it and
 // the exit code.
 //
-//	cmdex --version   print the version
-//	cmdex --update    install a newer release, if there is one
+//	cmdex --version                 print the version
+//	cmdex --update                  install a newer release, if there is one
+//	cmdex --export FILE.json|.db    save a full backup / a copy of the database
+//	cmdex --import FILE [--replace] load a backup, pack or database
 func CLI(args []string) (handled bool, code int) {
 	if len(args) == 0 {
 		return false, 0
@@ -29,8 +33,53 @@ func CLI(args []string) (handled bool, code int) {
 	case "--update":
 		out := consoleOut()
 		return true, updateCLI(out)
+	case "--export", "--import":
+		out := consoleOut()
+		if len(args) < 2 {
+			fmt.Fprintln(out, "usage: cmdex --export FILE.json|FILE.db   or   cmdex --import FILE [--replace]")
+			return true, 2
+		}
+		return true, transferCLI(out, args[0], args[1], len(args) > 2 && args[2] == "--replace")
 	}
 	return false, 0
+}
+
+// transferCLI exports or imports the library without the window:
+//
+//	cmdex --export backup.json      full JSON backup
+//	cmdex --export copy.db          copy of the database file
+//	cmdex --import FILE [--replace] backup, pack or database; merged unless --replace
+func transferCLI(out io.Writer, op, file string, replace bool) int {
+	path, err := store.DefaultPath()
+	if err == nil {
+		var s *store.Store
+		if s, err = store.Open(path); err == nil {
+			defer s.Close()
+			a := &App{store: s}
+			switch op {
+			case "--export":
+				if strings.EqualFold(filepath.Ext(file), ".db") {
+					err = a.writeDatabase(file)
+				} else {
+					err = a.writeBackup(file)
+				}
+				if err == nil {
+					fmt.Fprintln(out, "exported to", file)
+				}
+			case "--import":
+				var r store.BackupResult
+				if r, err = a.ImportFrom(file, replace); err == nil {
+					fmt.Fprintf(out, "imported: %d commands added, %d updated, %d kept; %d explanations, %d rules, %d connections, %d collected groups, %d settings\n",
+						r.Added, r.Updated, r.Kept, r.Explains, r.Rules, r.Connections, r.Collected, r.Settings)
+				}
+			}
+		}
+	}
+	if err != nil {
+		fmt.Fprintln(out, strings.TrimPrefix(op, "--"), "failed:", err)
+		return 1
+	}
+	return 0
 }
 
 func updateCLI(out io.Writer) int {
