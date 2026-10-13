@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/thangkes/cmdex/internal/update"
@@ -63,14 +61,13 @@ func (a *App) ApplyUpdate() error {
 	}()
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
 	defer cancel()
-	dir, err := os.MkdirTemp("", "cmdex-update-")
+	path, err := download(ctx, r)
 	if err != nil {
 		return err
 	}
-	dest := filepath.Join(dir, r.AssetName)
-	if err := update.Download(ctx, http.DefaultClient, r, dest); err != nil {
-		os.RemoveAll(dir)
+	if err := installFile(path, true); err != nil {
 		return err
 	}
-	return a.install(dest)
+	a.restart()
+	return nil
 }

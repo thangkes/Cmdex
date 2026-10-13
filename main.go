@@ -7,6 +7,7 @@ import (
 	"embed"
 	"io/fs"
 	"log"
+	"os"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -24,6 +25,9 @@ var frontend embed.FS
 var icon []byte
 
 func main() {
+	if handled, code := app.CLI(os.Args[1:]); handled {
+		os.Exit(code)
+	}
 	assets, err := fs.Sub(frontend, "frontend")
 	if err != nil {
 		log.Fatal(err)

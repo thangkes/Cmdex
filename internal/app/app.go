@@ -69,6 +69,7 @@ func (a *App) startup(ctx context.Context) {
 	}
 	go a.collectLoop()
 	go a.updateLoop()
+	go cleanDownloads()
 }
 
 func (a *App) shutdown(context.Context) {

@@ -20,6 +20,11 @@ import (
 // Repo is where official builds are published.
 const Repo = "thangkes/Cmdex"
 
+// APIBase is the GitHub API. Only test builds change it, at build time
+// (-X github.com/thangkes/cmdex/internal/update.APIBase=...); nothing at run
+// time can point updates elsewhere.
+var APIBase = "https://api.github.com"
+
 const sumsName = "SHA256SUMS.txt"
 
 // Release is a newer version with the one file this app needs.
@@ -56,7 +61,7 @@ func Check(ctx context.Context, hc *http.Client, current string, match func(name
 	if !ok {
 		return nil, nil
 	}
-	req, _ := http.NewRequestWithContext(ctx, "GET", "https://api.github.com/repos/"+Repo+"/releases?per_page=15", nil)
+	req, _ := http.NewRequestWithContext(ctx, "GET", APIBase+"/repos/"+Repo+"/releases?per_page=15", nil)
 	req.Header.Set("Accept", "application/vnd.github+json")
 	res, err := hc.Do(req)
 	if err != nil {

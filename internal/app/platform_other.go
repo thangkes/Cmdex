@@ -3,6 +3,7 @@
 package app
 
 import (
+	"io"
 	"os"
 	"strings"
 	"syscall"
@@ -10,16 +11,24 @@ import (
 	"github.com/thangkes/cmdex/internal/update"
 )
 
-// install replaces the program file with the one from the downloaded
-// archive and restarts into it.
-func (a *App) install(archive string) error {
-	exe, err := update.ReplaceBinary(archive)
+// installFile replaces the program file with the one from the downloaded
+// archive.
+func installFile(archive string, _ bool) error {
+	_, err := update.ReplaceBinary(archive)
+	return err
+}
+
+// restart starts the new program file in place of this process.
+func (a *App) restart() {
+	exe, err := os.Executable()
 	if err != nil {
-		return err
+		return
 	}
 	a.shutdown(a.ctx)
-	return syscall.Exec(exe, os.Args, os.Environ())
+	syscall.Exec(exe, os.Args, os.Environ())
 }
+
+func consoleOut() io.Writer { return os.Stdout }
 
 // systemLang is "vi" when the locale is Vietnamese.
 func systemLang() string {

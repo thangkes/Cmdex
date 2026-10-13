@@ -46,8 +46,11 @@ try {
 
     Write-Host "== publish $tag ==" -ForegroundColor Cyan
     git add VERSION winres/winres.json
-    git commit -q -m "Release $tag"
-    if ($LASTEXITCODE) { throw "git commit failed" }
+    git diff --cached --quiet
+    if ($LASTEXITCODE) {
+        git commit -q -m "Release $tag"
+        if ($LASTEXITCODE) { throw "git commit failed" }
+    }
     git tag -a $tag -m "Cmdex $Version"
     git push -q origin main
     if ($LASTEXITCODE) { throw "git push failed" }
