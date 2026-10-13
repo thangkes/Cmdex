@@ -3,6 +3,7 @@ package explain
 import (
 	"bytes"
 	"context"
+	"debug/pe"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -37,7 +38,7 @@ func FromHelp(ctx context.Context, prog string) (store.Explain, bool) {
 			parse = parsePowerShellHelp
 		} else if sys := os.Getenv("SystemRoot"); sys != "" {
 			exe := filepath.Join(sys, "System32", prog+".exe")
-			if _, err := os.Stat(exe); err == nil {
+			if _, err := os.Stat(exe); err == nil && safeForHelp(prog, exe) {
 				out = run(ctx, exe, "/?")
 				parse = parseOptionList
 			}
@@ -177,4 +178,34 @@ func parsePowerShellHelp(text string) store.Explain {
 		}
 	}
 	return e
+}
+
+// neverRunForHelp lists System32 programs Cmdex never starts to read their
+// help: they act at once, open an interactive console, or run other code.
+var neverRunForHelp = map[string]bool{
+	"cmd": true, "powershell": true, "pwsh": true, "wscript": true, "cscript": true, "mshta": true,
+	"rundll32": true, "regsvr32": true, "msiexec": true, "runas": true, "diskpart": true, "format": true,
+	"logoff": true, "tsdiscon": true, "shutdown": true, "systemreset": true, "bash": true, "wsl": true,
+	"ftp": true, "telnet": true, "ssh": true, "sftp": true, "scp": true, "netsh": true, "wmic": true,
+}
+
+// safeForHelp: only console programs (a window program would just open) and
+// none on the list above.
+func safeForHelp(prog, exe string) bool {
+	if neverRunForHelp[strings.ToLower(prog)] {
+		return false
+	}
+	f, err := pe.Open(exe)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+	const consoleSubsystem = 3 // IMAGE_SUBSYSTEM_WINDOWS_CUI
+	switch h := f.OptionalHeader.(type) {
+	case *pe.OptionalHeader64:
+		return h.Subsystem == consoleSubsystem
+	case *pe.OptionalHeader32:
+		return h.Subsystem == consoleSubsystem
+	}
+	return false
 }

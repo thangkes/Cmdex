@@ -64,6 +64,7 @@ func (a *App) startup(ctx context.Context) {
 		return
 	}
 	a.coll = &collect.Collector{Store: a.store}
+	a.coll.Rescrub() // secrets missed by an older Cmdex are masked once
 	if a.store.Setting("packs.imported", "") == "" {
 		a.importStarter()
 	}

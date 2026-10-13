@@ -101,7 +101,7 @@ func Open(path string) (*Store, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return nil, err
 	}
-	db, err := sql.Open("sqlite", "file:"+filepath.ToSlash(path)+"?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=foreign_keys(1)")
+	db, err := sql.Open("sqlite", "file:"+filepath.ToSlash(path)+"?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=foreign_keys(1)&_pragma=trusted_schema(0)")
 	if err != nil {
 		return nil, err
 	}
@@ -304,6 +304,14 @@ func (s *Store) SaveCommand(c Command) (int64, error) {
 	c.Name, c.Template = strings.TrimSpace(c.Name), strings.TrimSpace(c.Template)
 	if c.Name == "" || c.Template == "" {
 		return 0, errors.New("name and template are required")
+	}
+	if err := CheckCommandText(c.Template); err != nil {
+		return 0, err
+	}
+	for _, p := range c.Params {
+		if err := CheckCommandText(p.Default); err != nil {
+			return 0, fmt.Errorf("parameter %s: %w", p.Key, err)
+		}
 	}
 	switch c.Platform {
 	case Windows, Linux, Both:

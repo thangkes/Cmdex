@@ -6,11 +6,15 @@
 package main
 
 import (
+	"crypto/rand"
+	"crypto/subtle"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"reflect"
 	"strings"
@@ -19,19 +23,25 @@ import (
 	"github.com/thangkes/cmdex/internal/app"
 )
 
+// The bridge runs commands on this computer, so only the page served here may
+// use it: every call carries a random token that only this page knows (a
+// web page elsewhere cannot read it), the Host header must be this address
+// (no DNS rebinding), and bodies must be JSON (no simple cross-site posts).
 const shim = `<script>
 // Stands in for the Wails bridge: same calls, over HTTP.
+const CMDEX_TOKEN = "{{TOKEN}}";
 window.go = { app: { App: new Proxy({}, { get: (_, name) => (...args) =>
-  fetch("/bridge/" + name, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(args) })
+  fetch("/bridge/" + name, { method: "POST", headers: { "Content-Type": "application/json", "X-Cmdex-Token": CMDEX_TOKEN }, body: JSON.stringify(args) })
     .then(async r => { const j = await r.json(); if (!r.ok) throw new Error(j.error); return j.result; }) }) } };
 const handlers = {};
-const es = new EventSource("/events");
+const es = new EventSource("/events?t=" + CMDEX_TOKEN);
 es.onmessage = m => { const e = JSON.parse(m.data); (handlers[e.name] || []).forEach(f => f(...e.data)); };
 let clip = "";
 window.runtime = {
   EventsOn: (name, f) => { (handlers[name] = handlers[name] || []).push(f); },
   ClipboardSetText: t => { clip = t; return navigator.clipboard ? navigator.clipboard.writeText(t).catch(() => {}) : Promise.resolve(); },
   ClipboardGetText: () => Promise.resolve(clip),
+  BrowserOpenURL: u => window.open(u, "_blank", "noopener"),
 };
 </script>`
 
@@ -57,6 +67,20 @@ func main() {
 	dir := flag.String("frontend", "frontend", "frontend folder")
 	flag.Parse()
 
+	if host, _, err := net.SplitHostPort(*addr); err != nil || !net.ParseIP(host).IsLoopback() {
+		log.Fatal("devserve runs commands on this computer: listen on a loopback address only (127.0.0.1:port)")
+	}
+	tb := make([]byte, 24)
+	rand.Read(tb)
+	token := hex.EncodeToString(tb)
+	allowed := func(w http.ResponseWriter, r *http.Request, given string) bool {
+		if r.Host != *addr || subtle.ConstantTimeCompare([]byte(given), []byte(token)) != 1 {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return false
+		}
+		return true
+	}
+
 	a := app.New()
 	h := &hub{subs: map[chan []byte]bool{}}
 	app.SetEmitter(a, h.send)
@@ -66,8 +90,11 @@ func main() {
 	av := reflect.ValueOf(a)
 	mux := http.NewServeMux()
 	mux.HandleFunc("/bridge/", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "POST only", http.StatusMethodNotAllowed)
+		if r.Method != http.MethodPost || !strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
+			http.Error(w, "POST application/json only", http.StatusMethodNotAllowed)
+			return
+		}
+		if !allowed(w, r, r.Header.Get("X-Cmdex-Token")) {
 			return
 		}
 		name := strings.TrimPrefix(r.URL.Path, "/bridge/")
@@ -111,6 +138,9 @@ func main() {
 		writeJSON(w, http.StatusOK, map[string]any{"result": result})
 	})
 	mux.HandleFunc("/events", func(w http.ResponseWriter, r *http.Request) {
+		if !allowed(w, r, r.URL.Query().Get("t")) {
+			return
+		}
 		fl, ok := w.(http.Flusher)
 		if !ok {
 			return
@@ -135,7 +165,13 @@ func main() {
 	})
 	files := http.FileServer(http.Dir(*dir))
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Host != *addr { // a rebound host name must not get the page and its token
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
 		w.Header().Set("Cache-Control", "no-store")
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("Content-Security-Policy", "frame-ancestors 'none'")
 		if r.URL.Path != "/" && r.URL.Path != "/index.html" {
 			files.ServeHTTP(w, r)
 			return
@@ -148,7 +184,8 @@ func main() {
 		defer b.Close()
 		page, _ := io.ReadAll(b)
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Write([]byte(strings.Replace(string(page), "<script src=\"vendor/xterm.js\"></script>", shim+"\n<script src=\"vendor/xterm.js\"></script>", 1)))
+		js := strings.Replace(shim, "{{TOKEN}}", token, 1)
+		w.Write([]byte(strings.Replace(string(page), "<script src=\"vendor/xterm.js\"></script>", js+"\n<script src=\"vendor/xterm.js\"></script>", 1)))
 	})
 	log.Printf("Cmdex page on http://%s", *addr)
 	log.Fatal(http.ListenAndServe(*addr, mux))

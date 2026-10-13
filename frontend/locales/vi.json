@@ -225,7 +225,7 @@
   "io.replace": "Thay thế toàn bộ",
   "io.replaceQ": "Toàn bộ thư viện này (lệnh, giải nghĩa, quy tắc, kết nối, lệnh thu thập, cài đặt) sẽ bị thay bằng nội dung file. Hãy xuất bản sao lưu trước nếu có thể cần lại. Tiếp tục?",
   "io.doneTitle": "Đã nạp",
-  "io.done": "Thêm {added} lệnh, cập nhật {updated}, {kept} đã có sẵn; {explains} giải nghĩa, {rules} quy tắc, {connections} kết nối, {collected} nhóm thu thập, {settings} cài đặt.",
+  "io.done": "Thêm {added} lệnh, cập nhật {updated}, {kept} đã có sẵn; {explains} giải nghĩa, {rules} quy tắc, {connections} kết nối, {collected} nhóm thu thập, {settings} cài đặt. {rejected} lệnh bị từ chối vì chứa ký tự điều khiển hoặc ký tự ẩn.",
   "io.exportTitle": "Xuất dữ liệu",
   "io.exp.backup": "Sao lưu đầy đủ (.json)",
   "io.exp.backupD": "mọi thứ — lệnh, giải nghĩa, quy tắc, từ đồng nghĩa, kết nối, lệnh thu thập, cài đặt — trong một file JSON đọc được. Phù hợp nhất để chuyển sang máy khác.",
@@ -233,5 +233,9 @@
   "io.exp.dbD": "bản chép nguyên vẹn của database SQLite. Nạp lại bằng nút Nhập…, hoặc mở bằng bất kỳ công cụ SQLite nào.",
   "io.exp.pack": "Gói lệnh (.json)",
   "io.exp.packD": "chỉ gồm lệnh, giải nghĩa, từ đồng nghĩa và quy tắc, để chia sẻ cho người khác.",
-  "io.noPasswords": "Mật khẩu không bao giờ được xuất: chúng nằm trong kho bảo mật của máy này. Ở máy mới, Cmdex sẽ hỏi lại ở lần kết nối đầu."
+  "io.noPasswords": "Mật khẩu không bao giờ được xuất: chúng nằm trong kho bảo mật của máy này. Ở máy mới, Cmdex sẽ hỏi lại ở lần kết nối đầu.",
+  "link.title": "Mở đường link từ terminal?",
+  "link.text": "Phiên kết nối in ra một đường link tới {url}. Link sẽ mở trong trình duyệt web, không mở trong Cmdex. Chỉ mở nếu bạn tin nguồn này.",
+  "link.open": "Mở trong trình duyệt",
+  "run.hidden": "Lệnh này chứa ký tự ẩn hoặc ký tự điều khiển nên không được chạy."
 }

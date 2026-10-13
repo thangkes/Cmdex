@@ -65,6 +65,7 @@ type BackupResult struct {
 	Connections int `json:"connections"`
 	Collected   int `json:"collected"`
 	Settings    int `json:"settings"`
+	Rejected    int `json:"rejected"` // commands refused: empty, or hiding characters (CheckCommandText)
 }
 
 // portableSetting reports whether a setting belongs in a backup: not the
@@ -219,7 +220,16 @@ func (s *Store) ImportBackup(b Backup, replace bool) (BackupResult, error) {
 
 	ids := map[CommandRef]int64{}
 	for _, c := range b.Commands {
-		if strings.TrimSpace(c.Template) == "" || strings.TrimSpace(c.Name) == "" {
+		if strings.TrimSpace(c.Template) == "" || strings.TrimSpace(c.Name) == "" || CheckCommandText(c.Template) != nil {
+			r.Rejected++
+			continue
+		}
+		hidden := false
+		for _, p := range c.Params {
+			hidden = hidden || CheckCommandText(p.Default) != nil
+		}
+		if hidden {
+			r.Rejected++
 			continue
 		}
 		switch c.Platform {
@@ -412,8 +422,10 @@ func nonNilParams(p []Param) []Param {
 func (s *Store) ExportDatabase(path string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	_, err := s.db.Exec("VACUUM INTO ?", path)
-	return err
+	if _, err := s.db.Exec("VACUUM INTO ?", path); err != nil {
+		return err
+	}
+	return os.Chmod(path, 0o600) // like the backup JSON: readable by its owner only
 }
 
 // BackupFromDatabase reads another Cmdex database file (from another

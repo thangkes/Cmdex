@@ -132,3 +132,81 @@ func TestScanReadsOnlyNewLines(t *testing.T) {
 		t.Fatalf("shrunk file re-read: %d", got)
 	}
 }
+
+// Secrets in real-world command lines never reach the database.
+func TestRedactKeepsNoSecret(t *testing.T) {
+	secrets := []string{"S3cretPass", "ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789", "glpat-abcdefghijklmnop1234",
+		"sk-proj-abcdefghijklmnopqrstuvwxyz0123", "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY", "xoxb-1234567890-abcdefghijkl",
+		"abcdef0123456789", "P@ssw0rd", "P@ss", "eyJhbGciOiJIUzI1NiJ9"}
+	for _, in := range []string{
+		"curl -u admin:S3cretPass https://x/api",
+		"curl --user admin:S3cretPass https://x/api",
+		"git clone https://ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@github.com/a/b.git",
+		"git push https://oauth2:glpat-abcdefghijklmnop1234@gitlab.com/a/b.git",
+		"export GITHUB_TOKEN=ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+		"curl -H 'X-Api-Key: sk-proj-abcdefghijklmnopqrstuvwxyz0123' https://api",
+		"aws configure set aws_secret_access_key wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+		"slack-cli post xoxb-1234567890-abcdefghijkl",
+		"curl -H 'Cookie: session=abcdef0123456789' https://x",
+		`net use Z: \\server\share P@ssw0rd /user:corp\bob`,
+		"docker login -u bob -p S3cretPass registry.io",
+		"psql postgresql://bob:S3cretPass@db:5432/app",
+		"New-LocalUser bob -Password (ConvertTo-SecureString 'P@ss' -AsPlainText -Force)",
+		"jwt eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.abcdefghijklmnopqrstuvwxyz",
+	} {
+		out, secret := Redact(in, nil)
+		if !secret {
+			t.Errorf("not flagged: %s", in)
+		}
+		for _, s := range secrets {
+			if strings.Contains(out, s) {
+				t.Errorf("%q leaks %q", out, s)
+			}
+		}
+	}
+	// and nothing harmless is hidden
+	for _, in := range []string{"ssh -p 2222 bob@h", "docker run -p 8080:80 nginx", "curl -u bob https://x", "git clone https://github.com/a/b.git", `net use Z: \\srv\share /persistent:yes`} {
+		if out, _ := Redact(in, nil); out != in {
+			t.Errorf("masked a harmless line: %s -> %s", in, out)
+		}
+	}
+}
+
+// Lines stored by an older Cmdex (before a masking rule existed) are cleaned
+// once and regrouped; the second run does nothing.
+func TestRescrubOldData(t *testing.T) {
+	s, err := store.Open(filepath.Join(t.TempDir(), "c.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	// as an old version would have stored them, secret in clear
+	s.AddCollected("curl -u admin:S3cretPass {url}", "", "bash", false, "curl -u admin:S3cretPass https://a/x")
+	s.AddCollected("curl -u admin:S3cretPass {url}", "", "bash", false, "curl -u admin:S3cretPass https://a/x")
+	s.AddCollected("git clone https://ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@github.com/a/b.git", "", "bash", false,
+		"git clone https://ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@github.com/a/b.git")
+	id, _ := s.SaveCommand(store.Command{Name: "x", Platform: store.Linux, Template: "curl -u admin:S3cretPass {url}", Source: "collected"})
+
+	c := &Collector{Store: s}
+	n, err := c.Rescrub()
+	if err != nil || n == 0 {
+		t.Fatalf("%d %v", n, err)
+	}
+	list, _ := s.CollectedList("")
+	for _, g := range list {
+		for _, v := range g.Variants {
+			if strings.Contains(v.Raw, "S3cret") || strings.Contains(v.Raw, "ghp_") || strings.Contains(g.Signature, "S3cret") || strings.Contains(g.Signature, "ghp_") {
+				t.Fatalf("secret left: %+v", g)
+			}
+		}
+		if strings.HasPrefix(g.Signature, "curl") && (g.Total != 2 || !g.Secret) {
+			t.Fatalf("count or flag lost: %+v", g)
+		}
+	}
+	if cmd, _ := s.Command(id); strings.Contains(cmd.Template, "S3cret") {
+		t.Fatalf("collected command keeps the secret: %q", cmd.Template)
+	}
+	if n, _ := c.Rescrub(); n != 0 {
+		t.Fatal("ran twice")
+	}
+}

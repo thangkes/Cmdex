@@ -119,6 +119,7 @@ type ImportResult struct {
 	Added    int `json:"added"`
 	Skipped  int `json:"skipped"` // already in the library
 	Explains int `json:"explains"`
+	Rejected int `json:"rejected"` // commands hiding characters (CheckCommandText)
 }
 
 // ParsePack reads a pack file.
@@ -158,6 +159,8 @@ func (s *Store) ImportPack(p Pack, lang string) (ImportResult, error) {
 		switch {
 		case errors.Is(err, ErrDuplicate):
 			r.Skipped++
+		case errors.Is(err, ErrHiddenChars):
+			r.Rejected++ // a command that would run differently from how it looks
 		case err != nil:
 			return r, err
 		default:

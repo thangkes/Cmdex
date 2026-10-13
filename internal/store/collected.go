@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"strings"
 )
 
 // Statuses of a collected group.
@@ -217,4 +218,100 @@ func (s *Store) DeleteConnection(id int64) error {
 	defer s.mu.Unlock()
 	_, err := s.db.Exec("DELETE FROM connections WHERE id = ?", id)
 	return err
+}
+
+// RewriteVariants passes every collected line through fix (which returns the
+// cleaned line, its template and whether it hides a secret) and moves lines
+// whose text or template changed to the right group, keeping their counts.
+// Groups left empty are removed. It returns how many lines changed.
+func (s *Store) RewriteVariants(fix func(raw string) (line, signature string, secret, ok bool)) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	tx, err := s.db.Begin()
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
+	type row struct {
+		gid                int64
+		sig, cat, src, raw string
+		count              int
+		first, last        int64
+	}
+	rows, err := tx.Query(`SELECT c.id, c.signature, c.category, c.source, v.raw, v.count, c.first_seen, c.last_seen
+		FROM variants v JOIN collected c ON c.id = v.collected_id`)
+	if err != nil {
+		return 0, err
+	}
+	var all []row
+	for rows.Next() {
+		var r row
+		if err := rows.Scan(&r.gid, &r.sig, &r.cat, &r.src, &r.raw, &r.count, &r.first, &r.last); err != nil {
+			rows.Close()
+			return 0, err
+		}
+		all = append(all, r)
+	}
+	rows.Close()
+	changed := 0
+	for _, r := range all {
+		line, sig, secret, ok := fix(r.raw)
+		if ok && line == r.raw && sig == r.sig {
+			continue
+		}
+		changed++
+		if _, err := tx.Exec("DELETE FROM variants WHERE collected_id = ? AND raw = ?", r.gid, r.raw); err != nil {
+			return changed, err
+		}
+		if !ok { // nothing usable left: drop it
+			continue
+		}
+		var gid int64
+		err := tx.QueryRow("SELECT id FROM collected WHERE signature = ?", sig).Scan(&gid)
+		if errors.Is(err, sql.ErrNoRows) {
+			res, err := tx.Exec("INSERT INTO collected(signature, category, source, secret, first_seen, last_seen) VALUES(?, ?, ?, ?, ?, ?)",
+				sig, r.cat, r.src, secret, r.first, r.last)
+			if err != nil {
+				return changed, err
+			}
+			gid, _ = res.LastInsertId()
+		} else if err != nil {
+			return changed, err
+		} else if secret {
+			tx.Exec("UPDATE collected SET secret = 1 WHERE id = ?", gid)
+		}
+		if _, err := tx.Exec("INSERT INTO variants(collected_id, raw, count) VALUES(?, ?, ?) ON CONFLICT(collected_id, raw) DO UPDATE SET count = count + excluded.count",
+			gid, line, r.count); err != nil {
+			return changed, err
+		}
+	}
+	if _, err := tx.Exec("DELETE FROM collected WHERE id NOT IN (SELECT DISTINCT collected_id FROM variants)"); err != nil {
+		return changed, err
+	}
+	return changed, tx.Commit()
+}
+
+// RewriteTemplates applies fix to the templates of commands that came from
+// collecting (the user's own and pack commands are left alone).
+func (s *Store) RewriteTemplates(fix func(string) string) (int, error) {
+	cmds, err := s.Commands()
+	if err != nil {
+		return 0, err
+	}
+	n := 0
+	for _, c := range cmds {
+		if c.Source != "collected" {
+			continue
+		}
+		if t := fix(c.Template); t != c.Template {
+			s.mu.Lock()
+			_, err := s.db.Exec("UPDATE commands SET template = ? WHERE id = ?", t, c.ID)
+			s.mu.Unlock()
+			if err != nil && !strings.Contains(err.Error(), "UNIQUE") {
+				return n, err
+			}
+			n++
+		}
+	}
+	return n, nil
 }

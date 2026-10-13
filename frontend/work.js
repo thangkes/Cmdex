@@ -18,6 +18,10 @@ function newTerm() {
   const term = new Terminal({
     fontFamily: '"JetBrains Mono", "Cascadia Mono", Consolas, "DejaVu Sans Mono", monospace',
     fontSize: 13, cursorBlink: true, scrollback: 10000, theme: App.termTheme, allowProposedApi: false,
+    // Links printed by a server (OSC 8) never open inside Cmdex: a remote
+    // page there could reach the app's functions. Only http(s), only in the
+    // system browser, only after asking.
+    linkHandler: { activate: (e, uri) => openExternal(uri), allowNonHttpProtocols: false },
   });
   const fit = new FitAddon.FitAddon();
   term.loadAddon(fit);
@@ -32,6 +36,14 @@ function newTerm() {
     return true;
   });
   return { pane, term, fit };
+}
+
+async function openExternal(uri) {
+  let u;
+  try { u = new URL(uri); } catch (e) { return; }
+  if (u.protocol !== "http:" && u.protocol !== "https:") return;
+  const ok = await confirmDialog(t("link.title"), t("link.text", { url: u.href }), t("link.open"));
+  if (ok) window.runtime.BrowserOpenURL(u.href);
 }
 
 function registerSession(info, t0) {
@@ -154,7 +166,7 @@ async function openProfile(p, password, remember) {
       h("p", { class: "note" }, t("conn.trustHint")),
     ], [{ label: t("common.cancel"), value: false }, { label: t("conn.trust"), pri: true, value: true }]);
     if (ok) {
-      try { await api.TrustHost(p.id); openProfile(p, password, remember); }
+      try { await api.TrustHost(p.id, res.fingerprint); openProfile(p, password, remember); }
       catch (e) { setStatus(errText(e), true); }
     }
   }

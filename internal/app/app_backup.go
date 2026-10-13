@@ -119,7 +119,7 @@ func (a *App) ImportFrom(path string, replace bool) (store.BackupResult, error) 
 	if l.kind == "pack" {
 		l.pack.Name = "" // imported content becomes the user's own
 		r, err := a.store.ImportPack(l.pack, a.lang())
-		return store.BackupResult{Added: r.Added, Kept: r.Skipped, Explains: r.Explains}, err
+		return store.BackupResult{Added: r.Added, Kept: r.Skipped, Explains: r.Explains, Rejected: r.Rejected}, err
 	}
 	return a.store.ImportBackup(l.backup, replace)
 }

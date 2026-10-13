@@ -229,3 +229,28 @@ func firstProgram(tpl string) string {
 	}
 	return ""
 }
+
+// scrubVersion is raised whenever secret masking learns new patterns, so
+// lines collected by an older Cmdex are cleaned again once.
+const scrubVersion = "2"
+
+// Rescrub masks, with today's rules, secrets in lines collected by an older
+// version, and regroups them. It runs once per scrubVersion.
+func (c *Collector) Rescrub() (int, error) {
+	if c.Store.Setting("collect.scrub", "1") == scrubVersion {
+		return 0, nil
+	}
+	r := c.rules()
+	n, err := c.Store.RewriteVariants(func(raw string) (string, string, bool, bool) {
+		l, ok := Normalize(raw, r.secret)
+		return l.Raw, l.Signature, l.Secret, ok
+	})
+	if err != nil {
+		return n, err
+	}
+	m, err := c.Store.RewriteTemplates(func(t string) string { out, _ := Redact(t, r.secret); return out })
+	if err != nil {
+		return n + m, err
+	}
+	return n + m, c.Store.SetSetting("collect.scrub", scrubVersion)
+}

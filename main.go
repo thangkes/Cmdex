@@ -47,8 +47,11 @@ func main() {
 		SingleInstanceLock: &options.SingleInstanceLock{
 			UniqueId: "cmdex-2c6f1d0e-6b0a-4c55-9f0e-3a4f2a7d9b11",
 		},
-		Windows: &windows.Options{WebviewIsTransparent: false, WindowIsTranslucent: false},
-		Linux:   &linux.Options{Icon: icon, ProgramName: "cmdex"},
+		// Dropping a file or link on the window must not navigate it: only
+		// Cmdex's own page may reach the app's functions.
+		DragAndDrop: &options.DragAndDrop{DisableWebViewDrop: true},
+		Windows:     &windows.Options{WebviewIsTransparent: false, WindowIsTranslucent: false},
+		Linux:       &linux.Options{Icon: icon, ProgramName: "cmdex"},
 	})
 	if err != nil {
 		log.Fatal(err)

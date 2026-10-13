@@ -38,6 +38,20 @@ var (
 	reSSHPass = regexp.MustCompile(`(?i)(\bsshpass\s+-p\s*)("[^"]*"|'[^']*'|\S+)`)
 	// mysql/mysqldump/mariadb -pSECRET (glued; "-p" alone prompts and is fine)
 	reMySQL = regexp.MustCompile(`(?i)(\b(?:mysql|mysqldump|mariadb|mysqladmin)\b[^|;&]*?\s-p)([^\s]+)`)
+	// curl -u user:pass, --user user:pass, --proxy-user user:pass
+	reUserPass = regexp.MustCompile(`(?i)((?:^|\s)(?:-u|-U|--user|--proxy-user)(?:\s+|=)["']?[^\s:"']+:)([^\s"']+)`)
+	// a token as the user part of a URL: https://ghp_xxx@github.com
+	reURLToken = regexp.MustCompile(`(://)([A-Za-z0-9_\-]{20,})(@)`)
+	// cookies: Cookie: a=b; c=d  /  curl -b / --cookie
+	reCookie = regexp.MustCompile(`(?i)((?:\bcookie:\s*|(?:^|\s)(?:-b|--cookie)(?:\s+|=)))("[^"]*"|'[^']*'|[^\s"']+)`)
+	// aws configure set aws_secret_access_key VALUE (and other key/token/password settings)
+	reConfigSet = regexp.MustCompile(`(?i)(\bconfigure\s+set\s+\S*(?:secret|token|password|key)\S*\s+)(\S+)`)
+	// net use Z: \\server\share PASSWORD /user:x
+	reNetUse = regexp.MustCompile(`(?i)(\bnet\s+use\s+(?:[A-Z]:\s+|\*\s+)?\\\\\S+\s+)([^\s/*][^\s]*)`)
+	// docker / podman / helm / oc login -p X
+	reLoginP = regexp.MustCompile(`(?i)(\b(?:docker|podman|helm|oc|nerdctl)\b[^|;&]*?\blogin\b[^|;&]*?\s(?:-p|--password)(?:\s+|=))("[^"]*"|'[^']*'|\S+)`)
+	// well-known token shapes anywhere in a line
+	reKnownToken = regexp.MustCompile(`()(\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|glpat-[A-Za-z0-9_\-]{16,}|xox[abprs]-[A-Za-z0-9\-]{10,}|sk-[A-Za-z0-9_\-]{20,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_\-]{30,}|eyJ[A-Za-z0-9_\-]{8,}\.[A-Za-z0-9_\-]{8,}\.[A-Za-z0-9_\-]{8,})\b)`)
 )
 
 // Redact hides secrets in a command line. extra lists further option names
@@ -58,7 +72,8 @@ func Redact(line string, extra []string) (string, bool) {
 			return sub[1] + Mask + rest
 		})
 	}
-	for _, re := range []*regexp.Regexp{reURLPass, reBearer, reSecure, reSSHPass, reMySQL, reFlagSecret, reKV} {
+	for _, re := range []*regexp.Regexp{reURLPass, reURLToken, reBearer, reCookie, reSecure, reSSHPass, reMySQL, reUserPass,
+		reConfigSet, reNetUse, reLoginP, reFlagSecret, reKV, reKnownToken} {
 		line = mask(re, line)
 	}
 	for _, name := range extra {

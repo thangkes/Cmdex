@@ -160,14 +160,19 @@ func (a *App) OpenProfile(id int64, cols, rows int, password string, remember bo
 }
 
 // TrustHost saves the key the server of profile id showed, after the user
-// compared its fingerprint. Then OpenProfile again.
-func (a *App) TrustHost(id int64) error {
+// compared its fingerprint, then OpenProfile is called again. fingerprint
+// must be the one the user was shown: a key that arrived meanwhile (another
+// connection attempt, maybe from someone in the middle) is never trusted.
+func (a *App) TrustHost(id int64, fingerprint string) error {
 	a.mu.Lock()
 	p := a.pending[id]
 	delete(a.pending, id)
 	a.mu.Unlock()
 	if p == nil {
 		return errors.New("nothing to trust")
+	}
+	if fingerprint == "" || ssh.FingerprintSHA256(p.key) != fingerprint {
+		return errors.New("the server's key changed while you were checking it — connect again and compare the new fingerprint")
 	}
 	return conn.TrustHost("", p.host, p.port, p.key)
 }
@@ -234,6 +239,9 @@ func (a *App) Run(id, line string, commandID int64) error {
 		return err
 	}
 	line = strings.TrimRight(line, "\r\n")
+	if err := store.CheckCommandText(line); err != nil {
+		return err // never paste a line that runs differently from how it looks
+	}
 	if _, err := s.conn.Write([]byte(line + "\r")); err != nil {
 		return err
 	}

@@ -183,3 +183,13 @@ func TestRuleGroupNamesFollowLanguage(t *testing.T) {
 		t.Fatalf("user's group name overwritten: %+v", r)
 	}
 }
+
+// A database file from elsewhere must not run functions through triggers
+// or views it defines.
+func TestUntrustedSchema(t *testing.T) {
+	s := open(t)
+	var v int
+	if err := s.db.QueryRow("PRAGMA trusted_schema").Scan(&v); err != nil || v != 0 {
+		t.Fatalf("trusted_schema = %d (%v), want 0", v, err)
+	}
+}

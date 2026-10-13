@@ -225,7 +225,7 @@
   "io.replace": "Replace everything",
   "io.replaceQ": "Everything in this library (commands, explanations, rules, connections, collected lines, settings) will be replaced by the file. Export a backup first if you may need it. Continue?",
   "io.doneTitle": "Imported",
-  "io.done": "{added} commands added, {updated} updated, {kept} already here; {explains} explanations, {rules} rules, {connections} connections, {collected} collected groups, {settings} settings.",
+  "io.done": "{added} commands added, {updated} updated, {kept} already here; {explains} explanations, {rules} rules, {connections} connections, {collected} collected groups, {settings} settings. {rejected} refused because they hide control or invisible characters.",
   "io.exportTitle": "Export",
   "io.exp.backup": "Full backup (.json)",
   "io.exp.backupD": "everything — commands, explanations, rules, synonyms, connections, collected lines, settings — in a readable JSON file. Best for moving to another computer.",
@@ -233,5 +233,9 @@
   "io.exp.dbD": "an exact copy of the SQLite database. Load it back with Import…, or open it with any SQLite tool.",
   "io.exp.pack": "Command pack (.json)",
   "io.exp.packD": "only commands, explanations, synonyms and rules, to share with others.",
-  "io.noPasswords": "Passwords are never exported: they stay in this computer's keychain. On the new computer Cmdex asks for them at the first connection."
+  "io.noPasswords": "Passwords are never exported: they stay in this computer's keychain. On the new computer Cmdex asks for them at the first connection.",
+  "link.title": "Open a link from the terminal?",
+  "link.text": "The session printed a link to {url}. It opens in your web browser, not in Cmdex. Open it only if you trust it.",
+  "link.open": "Open in browser",
+  "run.hidden": "This command contains hidden or control characters, so it was not run."
 }
