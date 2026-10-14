@@ -116,4 +116,8 @@ function debounce(fn, ms) {
   return (...a) => { clearTimeout(timer); timer = setTimeout(() => fn(...a), ms); };
 }
 
-function osLabel(p) { return p === "windows" ? "Windows" : p === "linux" ? "Linux" : "Win + Linux"; }
+function osLabel(p) { return { windows: "Windows", linux: "Linux", cisco: "Cisco", pfsense: "pfSense" }[p] || "Win + Linux"; }
+
+// explainKey: devices keep their own explanations ("cisco:show"), as the
+// app does (store.ExplainKey).
+function explainKey(platform, program) { return platform === "cisco" || platform === "pfsense" ? platform + ":" + program.toLowerCase() : program; }

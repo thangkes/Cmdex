@@ -21,7 +21,7 @@ Collected command lines are stored with secrets already masked (`•••••
 
   "commands": [{
     "name": "Ping a host",
-    "platform": "windows",           // windows | linux | both
+    "platform": "windows",           // windows | linux | both (Windows and Linux) | cisco | pfsense
     "shell": "cmd",
     "category": "Network",
     "template": "ping {host} -n {count}",   // {parameters} in curly braces
@@ -60,6 +60,7 @@ Collected command lines are stored with secrets already masked (`•••••
     "name": "web-01", "host": "10.0.0.10", "port": 22, "user": "root",
     "auth": "key",                   // key | password | agent
     "keyPath": "~/.ssh/id_ed25519",
+    "platform": "",                  // device type: "" (guess: Linux over SSH) | linux | windows | cisco | pfsense
     "serial": {"port": "COM3", "baud": 9600, "dataBits": 8, "parity": "none", "stopBits": "1", "lineEnd": "cr"}
   }],
 

@@ -2,6 +2,7 @@ package explain
 
 import (
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/thangkes/cmdex/internal/store"
@@ -85,8 +86,28 @@ var (
 	reFlag   = regexp.MustCompile(`^(--?|/)[A-Za-z?]`)
 )
 
+// Options change how a line is read.
+type Options struct {
+	// Keywords: the line is a device command made of keywords that may be
+	// abbreviated to any unique beginning, as on Cisco ("sh ip int br").
+	// The program's Flags are then the keywords that may follow it.
+	Keywords bool
+	// Programs are the commands known on that device, to resolve an
+	// abbreviated command ("conf" for "configure").
+	Programs []string
+}
+
+// keywordWrappers, on keyword devices, run the command after them: "no"
+// undoes a setting, "do" runs an exec command from configuration mode.
+var keywordWrappers = map[string]bool{"no": true, "do": true}
+
 // Explain breaks line down.
 func Explain(line string, lookup Lookup, m Messages) Result {
+	return ExplainWith(line, lookup, m, Options{})
+}
+
+// ExplainWith breaks line down as opts says.
+func ExplainWith(line string, lookup Lookup, m Messages, opts Options) Result {
 	toks := Lex(line)
 	res := Result{Line: line, Segments: []Segment{}, Programs: []string{}, Missing: []string{}}
 	var cur *store.Explain
@@ -101,8 +122,19 @@ func Explain(line string, lookup Lookup, m Messages) Result {
 		}
 		if newCmd {
 			prog := Program(tk.Text)
+			if opts.Keywords {
+				prog = Expand(strings.ToLower(tk.Text), opts.Programs)
+			}
 			res.Programs = append(res.Programs, prog)
 			e, ok := lookup(prog)
+			if opts.Keywords && keywordWrappers[prog] {
+				seg := Segment{Start: tk.Start, End: tk.End, Kind: KindCmd, Title: tk.Text, Text: e.Summary, Known: ok}
+				if !ok {
+					seg.Text = m.Wrapper
+				}
+				res.Segments = append(res.Segments, seg)
+				continue // "no shutdown": the next word is a command again
+			}
 			seg := Segment{Start: tk.Start, End: tk.End, Kind: KindCmd, Title: tk.Text, Text: e.Summary, Known: ok}
 			if !ok {
 				seg.Kind, seg.Text = KindUnknown, m.UnknownCmd
@@ -138,7 +170,12 @@ func Explain(line string, lookup Lookup, m Messages) Result {
 			cur, newCmd, argi = &ee, false, 0
 			continue
 		}
-		if isFlag(cur, tk.Text) {
+		if opts.Keywords {
+			if seg, ok := keywordSegment(toks, &i, cur); ok {
+				res.Segments = append(res.Segments, seg)
+				continue
+			}
+		} else if isFlag(cur, tk.Text) {
 			res.Segments = append(res.Segments, flagSegment(toks, &i, cur, m))
 			continue
 		}
@@ -146,6 +183,56 @@ func Explain(line string, lookup Lookup, m Messages) Result {
 		argi++
 	}
 	return res
+}
+
+// Expand resolves an abbreviated word among names: the word itself when it
+// is one of them, else the shortest name it begins (Cisco runs "int" as
+// "interface" and "sh" as "show"); unchanged when nothing matches.
+func Expand(w string, names []string) string {
+	best := ""
+	for _, n := range names {
+		if n == w {
+			return w
+		}
+		if strings.HasPrefix(n, w) && (best == "" || len(n) < len(best) || (len(n) == len(best) && n < best)) {
+			best = n
+		}
+	}
+	if best == "" {
+		return w
+	}
+	return best
+}
+
+// keywordSegment explains a keyword of a device command, written in full
+// or abbreviated. A keyword whose Flag has Value takes the next word as its
+// value ("vlan 10").
+func keywordSegment(toks []Token, i *int, e *store.Explain) (Segment, bool) {
+	tk := toks[*i]
+	if e == nil || len(e.Flags) == 0 {
+		return Segment{}, false
+	}
+	names := make([]string, 0, len(e.Flags))
+	for k := range e.Flags {
+		names = append(names, k)
+	}
+	sort.Strings(names)
+	key := Expand(strings.ToLower(tk.Text), names)
+	f, ok := e.Flags[key]
+	if !ok {
+		return Segment{}, false
+	}
+	seg := Segment{Start: tk.Start, End: tk.End, Kind: KindFlag, Title: tk.Text, Text: f.Text, Known: true}
+	if f.Value {
+		v := ""
+		if *i+1 < len(toks) && !toks[*i+1].Op {
+			*i++
+			v = toks[*i].Text
+			seg.End, seg.Title = toks[*i].End, tk.Text+" "+v
+		}
+		seg.Text = strings.ReplaceAll(f.Text, "{v}", v)
+	}
+	return seg, true
 }
 
 var reSlashFlag = regexp.MustCompile(`^/([A-Za-z?]{1,2}|[A-Za-z]+:.*)$`)

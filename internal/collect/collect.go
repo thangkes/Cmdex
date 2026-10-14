@@ -243,8 +243,9 @@ func firstProgram(tpl string) string {
 
 // scrubVersion is raised whenever secret masking learns new patterns, or
 // templates are made differently, so lines collected by an older Cmdex are
-// cleaned and regrouped again once. 3: places given to cd, dir, ls… are {path}.
-const scrubVersion = "3"
+// cleaned and regrouped again once. 3: places given to cd, dir, ls… are {path};
+// 4: device secrets ("secret P", "community C").
+const scrubVersion = "4"
 
 // Backfill reads again, from their start, the parts of the history files
 // that Cmdex 0.1 already scanned, for the lines it skipped then: lone

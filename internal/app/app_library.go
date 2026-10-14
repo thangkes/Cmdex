@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"runtime"
+	"strings"
 
 	wr "github.com/wailsapp/wails/v2/pkg/runtime"
 
@@ -74,14 +75,20 @@ func normalizeSyn(syn map[string][]string) map[string][]string {
 }
 
 // LooksLikeCommand tells the page whether the request box holds a command
-// line (explain it) or plain words (search).
-func (a *App) LooksLikeCommand(text string) bool {
+// line (explain it) or plain words (search). platform is the active
+// session's ("cisco": "sh ip int br" is a command there).
+func (a *App) LooksLikeCommand(text, platform string) bool {
 	toks := explain.Lex(text)
 	if len(toks) == 0 {
 		return false
 	}
+	lookup, opts := a.explainFor(platform)
 	prog := explain.Program(toks[0].Text)
-	if _, ok := a.store.Explain(prog); ok {
+	if opts.Keywords {
+		if _, ok := lookup(explain.Expand(strings.ToLower(toks[0].Text), opts.Programs)); ok {
+			return true
+		}
+	} else if _, ok := lookup(prog); ok {
 		return true
 	}
 	for _, t := range toks[1:] {
@@ -92,16 +99,52 @@ func (a *App) LooksLikeCommand(text string) bool {
 	return false
 }
 
-// Explain breaks a command line down. Programs the library knows nothing
-// about are looked up once in the help installed on this computer, and what
-// is found is kept for next time.
-func (a *App) Explain(line string) explain.Result {
+// explainFor returns how to look explanations up for a session on
+// platform: a device's own first ("pfsense:netstat"), then, except on a
+// keyword device (Cisco), the general ones.
+func (a *App) explainFor(platform string) (explain.Lookup, explain.Options) {
+	if !store.IsDevice(platform) {
+		return func(p string) (store.Explain, bool) { return a.store.Explain(p) }, explain.Options{}
+	}
+	keywords := store.KeywordCLI(platform)
+	lookup := func(p string) (store.Explain, bool) {
+		if e, ok := a.store.Explain(store.ExplainKey(platform, p)); ok {
+			return e, true
+		}
+		if keywords {
+			return store.Explain{}, false
+		}
+		return a.store.Explain(p)
+	}
+	opts := explain.Options{Keywords: keywords}
+	if keywords {
+		opts.Programs = a.store.ExplainedOn(platform)
+	}
+	return lookup, opts
+}
+
+// Explain breaks a command line down, for a session on platform ("" for
+// this computer). Programs the library knows nothing about are looked up
+// once in the help installed on this computer, and what is found is kept
+// for next time (not for devices: this computer's help is not theirs).
+// Programs holds the keys to edit the explanations under ("cisco:show").
+func (a *App) Explain(line, platform string) explain.Result {
 	msgs := explain.MessagesEN
 	if a.lang() == "vi" {
 		msgs = explain.MessagesVI
 	}
-	lookup := func(p string) (store.Explain, bool) { return a.store.Explain(p) }
-	res := explain.Explain(line, lookup, msgs)
+	lookup, opts := a.explainFor(platform)
+	res := explain.ExplainWith(line, lookup, msgs, opts)
+	defer func() {
+		if store.KeywordCLI(platform) {
+			for i, p := range res.Programs {
+				res.Programs[i] = store.ExplainKey(platform, p)
+			}
+		}
+	}()
+	if store.IsDevice(platform) {
+		return res
+	}
 	learned := false
 	for _, prog := range res.Missing {
 		if a.store.Setting("help.miss."+prog, "") != "" {
@@ -115,7 +158,7 @@ func (a *App) Explain(line string) explain.Result {
 		}
 	}
 	if learned {
-		res = explain.Explain(line, lookup, msgs)
+		res = explain.ExplainWith(line, lookup, msgs, opts)
 	}
 	return res
 }

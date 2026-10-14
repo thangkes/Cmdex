@@ -22,6 +22,11 @@ func TestRedact(t *testing.T) {
 		`$p = ConvertTo-SecureString "hunter2" -AsPlainText -Force`: `$p = ConvertTo-SecureString ` + Mask + ` -AsPlainText -Force`,
 		"sshpass -p hunter2 ssh bob@h":                              "sshpass -p " + Mask + " ssh bob@h",
 		"ssh -p 2222 bob@h":                                         "ssh -p 2222 bob@h",
+		"username admin privilege 15 secret P@ssw0rd":               "username admin privilege 15 secret " + Mask,
+		"enable secret 5 $1$abcd$xyz":                               "enable secret 5 " + Mask,
+		"snmp-server community s3cr3t RO":                           "snmp-server community " + Mask + " RO",
+		"crypto key generate rsa modulus 2048":                      "crypto key generate rsa modulus 2048",
+		"show running-config | include secret":                      "show running-config | include secret",
 	}
 	for in, want := range cases {
 		got, _ := Redact(in, nil)

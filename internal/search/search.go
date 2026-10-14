@@ -76,6 +76,12 @@ func Rank(cmds []store.Command, query string, syn map[string][]string, os string
 		var score float64
 		if len(terms) == 0 {
 			score = float64(c.Uses) + 1
+			if store.IsDevice(os) && c.Platform == os {
+				score += 1e6 // on a device, its own commands lead the list
+			}
+			if os != "" && store.IsDevice(c.Platform) && c.Platform != os {
+				score *= 0.5 // and stay behind elsewhere
+			}
 		} else {
 			fields := []string{c.Name, strings.Join(c.Tags, " "), c.Purpose, c.Template, c.Category, c.Notes}
 			for i, f := range fields {
@@ -91,8 +97,15 @@ func Rank(cmds []store.Command, query string, syn map[string][]string, os string
 				continue
 			}
 			score += math.Min(float64(c.Uses), 20) * 0.03
-			if os != "" && (c.Platform == os || c.Platform == store.Both) {
+			switch {
+			case os == "":
+			case store.IsDevice(os) && c.Platform == os:
+				score += 2 // on a device, its own commands first
+			case !store.IsDevice(os) && (c.Platform == os || c.Platform == store.Both):
 				score += 1.2
+			}
+			if os != "" && store.IsDevice(c.Platform) && c.Platform != os {
+				score *= 0.5 // a device's commands stay behind on a computer or another device
 			}
 		}
 		out = append(out, Result{Command: c, Score: score})

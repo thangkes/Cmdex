@@ -130,6 +130,8 @@ input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; }
 .os.windows { background: var(--info-bg); color: var(--info-text); }
 .os.linux { background: var(--ok-bg); color: var(--ok-text); }
 .os.both { background: var(--warn-bg); color: var(--code); }
+.os.cisco { background: var(--panel-2); color: var(--k-flag); }
+.os.pfsense { background: var(--panel-2); color: var(--k-op); }
 .bar { width: 64px; height: 5px; background: var(--line); border-radius: 999px; overflow: hidden; display: inline-block; }
 .bar span { display: block; height: 100%; background: var(--accent); }
 .builder { border: 1px solid var(--line); border-radius: 12px; background: var(--panel-2); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }

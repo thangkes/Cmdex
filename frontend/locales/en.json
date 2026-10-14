@@ -17,6 +17,8 @@
   "conn.kind.ssh": "SSH",
   "conn.kind.telnet": "Telnet",
   "conn.kind.serial": "COM / Serial",
+  "conn.device": "Device type",
+  "conn.deviceAuto": "Automatic (Linux over SSH)",
   "conn.name": "Name",
   "conn.namePh": "e.g. web-01",
   "conn.host": "Host",

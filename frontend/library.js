@@ -94,7 +94,7 @@ function editor(c0) {
 
   box.appendChild(h("div", { class: "grid3" },
     field(t("lib.name"), text("name"), "span3"),
-    field(t("lib.platform"), select("platform", [["windows", "Windows"], ["linux", "Linux"], ["both", "Windows + Linux"]])),
+    field(t("lib.platform"), select("platform", [["windows", "Windows"], ["linux", "Linux"], ["both", "Windows + Linux"], ["cisco", "Cisco"], ["pfsense", "pfSense"]])),
     field("Shell", text("shell", { placeholder: "PowerShell, cmd, bash…" })),
     field(t("lib.category"), text("category")),
     h("label", { class: "field span3" }, t("lib.template"), tpl, h("span", { class: "muted" }, t("lib.templateHint")))));
@@ -122,7 +122,7 @@ function editor(c0) {
       h("button", { type: "button", class: "btn pri", onclick: save }, t("lib.save")),
       c.id ? h("button", { type: "button", class: "btn", onclick: () => { Library.draft = Object.assign(JSON.parse(JSON.stringify(c)), { id: 0, name: c.name + " (2)", source: "user" }); renderLibrary(); } }, t("lib.duplicate")) : null,
       h("button", { type: "button", class: "btn", onclick: () => { showView("work"); document.getElementById("q").value = fillTemplate(c.template, Object.fromEntries(c.params.map(p => [p.key, p.default]))); Work.forced = "explain"; Work.query = document.getElementById("q").value; refreshRight(); } }, t("lib.explain")),
-      h("button", { type: "button", class: "btn ghost", onclick: () => Library.editExplain(c.template.trim().split(/\s+/)[0] || "") }, t("lib.editExplain"))),
+      h("button", { type: "button", class: "btn ghost", onclick: () => Library.editExplain(explainKey(c.platform, c.template.trim().split(/\s+/)[0] || "")) }, t("lib.editExplain"))),
     c.id ? h("button", { type: "button", class: "btn danger", onclick: async () => {
       if (!await confirmDialog(t("lib.delete"), t("lib.deleteQ", { name: c.name }), t("lib.delete"), true)) return;
       await api.DeleteCommand(c.id).catch(e => setStatus(errText(e), true));

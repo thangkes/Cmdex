@@ -249,7 +249,7 @@ func (a *App) CollectDecide(id int64, action string, target int64) (int64, error
 	case "add":
 		c := store.Command{
 			Name:     nameFor(g.Signature),
-			Platform: platformFor(g.Source),
+			Platform: a.platformFor(g.Source),
 			Category: g.Category,
 			Template: g.Signature,
 			Uses:     g.Total,
@@ -304,7 +304,26 @@ func nameFor(sig string) string {
 	return strings.Join(progs, " | ")
 }
 
-func platformFor(source string) string {
+func (a *App) platformFor(source string) string {
+	// "session:<name>": run through Cmdex in an open session or a saved
+	// connection of that name (a Cisco switch, a pfSense box…)
+	if name, ok := strings.CutPrefix(source, "session:"); ok {
+		a.mu.Lock()
+		for _, s := range a.sessions {
+			if s.name == name && s.platform != "" {
+				a.mu.Unlock()
+				return s.platform
+			}
+		}
+		a.mu.Unlock()
+		if conns, err := a.store.Connections(); err == nil {
+			for _, c := range conns {
+				if c.Name == name && c.SessionPlatform() != "" {
+					return c.SessionPlatform()
+				}
+			}
+		}
+	}
 	switch source {
 	case "powershell":
 		return store.Windows

@@ -28,12 +28,43 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-// Platforms a command runs on.
+// Platforms a command runs on. Both is Windows and Linux. Cisco (IOS and
+// IOS-XE) and PfSense are devices reached over SSH, Telnet or a serial
+// console.
 const (
 	Windows = "windows"
 	Linux   = "linux"
 	Both    = "both"
+	Cisco   = "cisco"
+	PfSense = "pfsense"
 )
+
+// ValidPlatform reports whether p is a platform a command may have.
+func ValidPlatform(p string) bool {
+	switch p {
+	case Windows, Linux, Both, Cisco, PfSense:
+		return true
+	}
+	return false
+}
+
+// IsDevice reports whether p is a network device rather than a computer.
+func IsDevice(p string) bool { return p == Cisco || p == PfSense }
+
+// KeywordCLI reports whether p's command line is made of keywords that may
+// be abbreviated ("sh ip int br"), as on Cisco, rather than of programs and
+// options. Its explanations are kept under "<platform>:<command>".
+func KeywordCLI(p string) bool { return p == Cisco }
+
+// ExplainKey is the key of a program's explanation on platform p: devices
+// have their own ("cisco:show"), so their commands are never explained as
+// a computer's ("ip" on Cisco is not Linux's ip).
+func ExplainKey(p, program string) string {
+	if IsDevice(p) {
+		return p + ":" + program
+	}
+	return program
+}
 
 // Param is one {placeholder} of a command template.
 type Param struct {
@@ -231,6 +262,8 @@ var migrations = []string{
 	);`,
 	// 3: groups merged by the automatic merge (Collect settings) are marked
 	`ALTER TABLE collected ADD COLUMN auto INTEGER NOT NULL DEFAULT 0;`,
+	// 4: the kind of device a connection reaches ("" = guess: Linux over SSH)
+	`ALTER TABLE connections ADD COLUMN platform TEXT NOT NULL DEFAULT '';`,
 }
 
 func (s *Store) migrate() error {
@@ -381,9 +414,7 @@ func (s *Store) SaveCommand(c Command) (int64, error) {
 			return 0, fmt.Errorf("parameter %s: %w", p.Key, err)
 		}
 	}
-	switch c.Platform {
-	case Windows, Linux, Both:
-	default:
+	if !ValidPlatform(c.Platform) {
 		c.Platform = Both
 	}
 	c.BaseKey = "" // never taken from the caller

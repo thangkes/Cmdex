@@ -15,7 +15,7 @@ import (
 
 // defaultsVersion is raised when the layout of the defaults database or the
 // way it is built changes, so every user gets it rebuilt.
-const defaultsVersion = "1"
+const defaultsVersion = "2" // 2: device platforms, explanations keyed per device
 
 const defaultsSchema = `CREATE TABLE meta(
 	key TEXT PRIMARY KEY,
@@ -193,7 +193,7 @@ func fillDefaults(db *sql.DB, packs []Pack, lang, hash string) error {
 			letters, _ := json.Marshal(e.Letters)
 			args, _ := json.Marshal(e.Args)
 			if _, err := tx.Exec("INSERT OR REPLACE INTO explain(cmd, summary, flags, letters, args, source) VALUES(?, ?, ?, ?, ?, ?)",
-				strings.ToLower(e.Cmd), e.Summary, string(flags), string(letters), string(args), source); err != nil {
+				e.Cmd, e.Summary, string(flags), string(letters), string(args), source); err != nil {
 				return err
 			}
 		}
@@ -675,8 +675,7 @@ func (s *Store) adopt() error {
 }
 
 func normPlatform(p string) string {
-	switch p {
-	case Windows, Linux, Both:
+	if ValidPlatform(p) {
 		return p
 	}
 	return Both

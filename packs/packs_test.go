@@ -15,8 +15,8 @@ import (
 // the README work.
 func TestStarterPacks(t *testing.T) {
 	all := All()
-	if len(all) != 3 {
-		t.Fatalf("want 3 packs, got %d", len(all))
+	if len(all) != 5 {
+		t.Fatalf("want 5 packs, got %d", len(all))
 	}
 	for _, lang := range []string{"en", "vi"} {
 		s, err := store.Open(filepath.Join(t.TempDir(), "c.db"))
@@ -117,5 +117,97 @@ func TestStarterPacks(t *testing.T) {
 			t.Errorf("curl -I: %q", r.Segments[1].Text)
 		}
 		s.Close()
+	}
+}
+
+// Cisco and pfSense commands: found first on their device, explained with
+// the device's own words (abbreviations included), never as Linux's.
+func TestDevicePacks(t *testing.T) {
+	s, err := store.Open(filepath.Join(t.TempDir(), "c.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	if err := s.UseDefaults(All(), "vi"); err != nil {
+		t.Fatal(err)
+	}
+	cmds, _ := s.Commands()
+	syn, _ := s.Synonyms()
+	top := func(q, os string) string {
+		r := search.Rank(cmds, q, syn, os, 1)
+		if len(r) == 0 {
+			return ""
+		}
+		return r[0].Command.Template
+	}
+	if got := top("vlan", "cisco"); !strings.HasPrefix(got, "show vlan") && !strings.Contains(got, "vlan") {
+		t.Errorf("cisco vlan: %q", got)
+	}
+	if got := top("bảng định tuyến", "cisco"); got != "show ip route" {
+		t.Errorf("cisco route: %q", got)
+	}
+	if got := top("bảng định tuyến", "linux"); got != "ip route" {
+		t.Errorf("linux route: %q", got)
+	}
+	if got := top("chặn địa chỉ", "pfsense"); !strings.HasPrefix(got, "easyrule block") {
+		t.Errorf("pfsense block: %q", got)
+	}
+	if r := search.Rank(cmds, "", syn, "cisco", 1); r[0].Command.Platform != store.Cisco {
+		t.Errorf("most used on a Cisco session: %+v", r[0].Command)
+	}
+	for _, r := range search.Rank(cmds, "", syn, "windows", 20) {
+		if store.IsDevice(r.Command.Platform) {
+			t.Errorf("device command among the most used on Windows: %+v", r.Command)
+		}
+	}
+
+	cisco := func(p string) (store.Explain, bool) { return s.Explain(store.ExplainKey(store.Cisco, p)) }
+	opts := explain.Options{Keywords: true, Programs: s.ExplainedOn(store.Cisco)}
+	kinds := func(line string) string {
+		r := explain.ExplainWith(line, cisco, explain.MessagesEN, opts)
+		var k []string
+		for _, sg := range r.Segments {
+			if !sg.Known {
+				k = append(k, "?"+sg.Title)
+			} else {
+				k = append(k, sg.Kind)
+			}
+		}
+		return strings.Join(k, " ")
+	}
+	for line, want := range map[string]string{
+		"sh ip int br":                         "cmd flag flag flag",
+		"show running-config | include vlan":   "cmd flag op cmd arg",
+		"conf t":                               "cmd flag",
+		"no shut":                              "cmd cmd",
+		"switchport access vlan 10":            "cmd flag flag",
+		"switchport trunk allowed vlan 10,20":  "cmd flag flag flag",
+		"ip address 192.168.1.1 255.255.255.0": "cmd flag arg arg",
+		"reload in 10":                         "cmd flag",
+	} {
+		if got := kinds(line); got != want {
+			t.Errorf("%s: %s, want %s", line, got, want)
+		}
+	}
+	r := explain.ExplainWith("sh ip int br", cisco, explain.MessagesVI, opts)
+	if r.Programs[0] != "show" || r.Segments[0].Text != "Xem trạng thái và cấu hình" {
+		t.Errorf("%+v", r)
+	}
+	// Linux's ip is not Cisco's
+	if e, _ := s.Explain("ip"); strings.Contains(e.Summary, "IP settings") {
+		t.Error("Cisco explanation leaked into Linux")
+	}
+
+	pf := func(p string) (store.Explain, bool) {
+		if e, ok := s.Explain(store.ExplainKey(store.PfSense, p)); ok {
+			return e, true
+		}
+		return s.Explain(p)
+	}
+	r = explain.Explain("pfctl -vvsr | grep 443", pf, explain.MessagesEN)
+	for _, sg := range r.Segments {
+		if (sg.Kind == "cmd" || sg.Kind == "flag") && !sg.Known {
+			t.Errorf("pfsense: %q not explained", sg.Title)
+		}
 	}
 }

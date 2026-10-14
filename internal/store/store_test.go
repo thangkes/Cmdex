@@ -185,3 +185,44 @@ func TestClearCollected(t *testing.T) {
 		t.Fatalf("%+v", p)
 	}
 }
+
+// The device type of connections is a new column: older connections keep
+// every value and read as "guess" (Linux over SSH).
+func TestConnectionDeviceType(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "c.db")
+	s, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// as a database of 0.1.4 had it: without the column
+	for _, q := range []string{"ALTER TABLE connections DROP COLUMN platform", "PRAGMA user_version = 3",
+		`INSERT INTO connections(kind, name, host, port, user, auth, key_path, serial, created) VALUES('ssh', 'web', '10.0.0.1', 22, 'root', 'key', '~/.ssh/k', '{}', 5)`} {
+		if _, err := s.db.Exec(q); err != nil {
+			t.Fatalf("%s: %v", q, err)
+		}
+	}
+	s.Close()
+	s, err = Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	c, _ := s.Connections()
+	if len(c) != 1 || c[0].Name != "web" || c[0].Host != "10.0.0.1" || c[0].User != "root" || c[0].KeyPath != "~/.ssh/k" || c[0].Created != 5 || c[0].Platform != "" {
+		t.Fatalf("%+v", c)
+	}
+	if c[0].SessionPlatform() != Linux {
+		t.Fatal(c[0].SessionPlatform())
+	}
+	c[0].Platform = Cisco
+	if _, err := s.SaveConnection(c[0]); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := s.Connection(c[0].ID); got.SessionPlatform() != Cisco {
+		t.Fatalf("%+v", got)
+	}
+	c[0].Platform = "both"
+	if _, err := s.SaveConnection(c[0]); err == nil {
+		t.Fatal("a connection cannot be Windows and Linux at once")
+	}
+}

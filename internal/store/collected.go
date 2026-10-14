@@ -198,11 +198,28 @@ type Connection struct {
 	KeyPath string `json:"keyPath"`
 	Serial  Serial `json:"serial"`
 	Created int64  `json:"created"`
+	// Platform is the kind of device reached: windows, linux, cisco,
+	// pfsense, or "" to guess (Linux over SSH, nothing over Telnet/serial).
+	Platform string `json:"platform"`
+}
+
+// validDevice reports whether p may be a connection's platform.
+func validDevice(p string) bool { return p == "" || (p != Both && ValidPlatform(p)) }
+
+// SessionPlatform is the platform of a session opened from c.
+func (c Connection) SessionPlatform() string {
+	if c.Platform != "" {
+		return c.Platform
+	}
+	if c.Kind == "ssh" {
+		return Linux
+	}
+	return ""
 }
 
 // Connections returns the saved profiles.
 func (s *Store) Connections() ([]Connection, error) {
-	rows, err := s.db.Query("SELECT id, kind, name, host, port, user, auth, key_path, serial, created FROM connections ORDER BY name")
+	rows, err := s.db.Query("SELECT id, kind, name, host, port, user, auth, key_path, serial, created, platform FROM connections ORDER BY name")
 	if err != nil {
 		return nil, err
 	}
@@ -211,7 +228,7 @@ func (s *Store) Connections() ([]Connection, error) {
 	for rows.Next() {
 		var c Connection
 		var serial string
-		if err := rows.Scan(&c.ID, &c.Kind, &c.Name, &c.Host, &c.Port, &c.User, &c.Auth, &c.KeyPath, &serial, &c.Created); err != nil {
+		if err := rows.Scan(&c.ID, &c.Kind, &c.Name, &c.Host, &c.Port, &c.User, &c.Auth, &c.KeyPath, &serial, &c.Created, &c.Platform); err != nil {
 			return nil, err
 		}
 		json.Unmarshal([]byte(serial), &c.Serial)
@@ -224,8 +241,8 @@ func (s *Store) Connections() ([]Connection, error) {
 func (s *Store) Connection(id int64) (Connection, error) {
 	var c Connection
 	var serial string
-	err := s.db.QueryRow("SELECT id, kind, name, host, port, user, auth, key_path, serial, created FROM connections WHERE id = ?", id).
-		Scan(&c.ID, &c.Kind, &c.Name, &c.Host, &c.Port, &c.User, &c.Auth, &c.KeyPath, &serial, &c.Created)
+	err := s.db.QueryRow("SELECT id, kind, name, host, port, user, auth, key_path, serial, created, platform FROM connections WHERE id = ?", id).
+		Scan(&c.ID, &c.Kind, &c.Name, &c.Host, &c.Port, &c.User, &c.Auth, &c.KeyPath, &serial, &c.Created, &c.Platform)
 	if err == nil {
 		json.Unmarshal([]byte(serial), &c.Serial)
 	}
@@ -239,6 +256,9 @@ func (s *Store) SaveConnection(c Connection) (int64, error) {
 	default:
 		return 0, errors.New("unknown connection kind")
 	}
+	if !validDevice(c.Platform) {
+		return 0, errors.New("unknown device type")
+	}
 	if c.Name == "" {
 		c.Name = c.Host
 		if c.Kind == "serial" {
@@ -249,15 +269,15 @@ func (s *Store) SaveConnection(c Connection) (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if c.ID == 0 {
-		res, err := s.db.Exec("INSERT INTO connections(kind, name, host, port, user, auth, key_path, serial, created) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)",
-			c.Kind, c.Name, c.Host, c.Port, c.User, c.Auth, c.KeyPath, string(serial), now())
+		res, err := s.db.Exec("INSERT INTO connections(kind, name, host, port, user, auth, key_path, serial, created, platform) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			c.Kind, c.Name, c.Host, c.Port, c.User, c.Auth, c.KeyPath, string(serial), now(), c.Platform)
 		if err != nil {
 			return 0, err
 		}
 		return res.LastInsertId()
 	}
-	_, err := s.db.Exec("UPDATE connections SET kind = ?, name = ?, host = ?, port = ?, user = ?, auth = ?, key_path = ?, serial = ? WHERE id = ?",
-		c.Kind, c.Name, c.Host, c.Port, c.User, c.Auth, c.KeyPath, string(serial), c.ID)
+	_, err := s.db.Exec("UPDATE connections SET kind = ?, name = ?, host = ?, port = ?, user = ?, auth = ?, key_path = ?, serial = ?, platform = ? WHERE id = ?",
+		c.Kind, c.Name, c.Host, c.Port, c.User, c.Auth, c.KeyPath, string(serial), c.Platform, c.ID)
 	return c.ID, err
 }
 

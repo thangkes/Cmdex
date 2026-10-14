@@ -50,6 +50,9 @@ var (
 	reNetUse = regexp.MustCompile(`(?i)(\bnet\s+use\s+(?:[A-Z]:\s+|\*\s+)?\\\\\S+\s+)([^\s/*][^\s]*)`)
 	// docker / podman / helm / oc login -p X
 	reLoginP = regexp.MustCompile(`(?i)(\b(?:docker|podman|helm|oc|nerdctl)\b[^|;&]*?\blogin\b[^|;&]*?\s(?:-p|--password)(?:\s+|=))("[^"]*"|'[^']*'|\S+)`)
+	// network devices: "username x secret P", "enable secret 5 $1$…",
+	// "password P", "snmp-server community C" (an optional type digit first)
+	reDeviceSecret = regexp.MustCompile(`(?i)((?:^|\s)(?:secret|password|community)\s+(?:[0-9]\s+)?)("[^"]*"|'[^']*'|\S+)`)
 	// well-known token shapes anywhere in a line
 	reKnownToken = regexp.MustCompile(`()(\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|glpat-[A-Za-z0-9_\-]{16,}|xox[abprs]-[A-Za-z0-9\-]{10,}|sk-[A-Za-z0-9_\-]{20,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_\-]{30,}|eyJ[A-Za-z0-9_\-]{8,}\.[A-Za-z0-9_\-]{8,}\.[A-Za-z0-9_\-]{8,})\b)`)
 )
@@ -73,7 +76,7 @@ func Redact(line string, extra []string) (string, bool) {
 		})
 	}
 	for _, re := range []*regexp.Regexp{reURLPass, reURLToken, reBearer, reCookie, reSecure, reSSHPass, reMySQL, reUserPass,
-		reConfigSet, reNetUse, reLoginP, reFlagSecret, reKV, reKnownToken} {
+		reConfigSet, reNetUse, reLoginP, reFlagSecret, reKV, reDeviceSecret, reKnownToken} {
 		line = mask(re, line)
 	}
 	for _, name := range extra {

@@ -19,7 +19,7 @@
     "baseState": {"type": "array", "items": {"$ref": "#/$defs/baseState"}}
   },
   "$defs": {
-    "platform": {"enum": ["windows", "linux", "both"]},
+    "platform": {"enum": ["windows", "linux", "both", "cisco", "pfsense"]},
     "param": {
       "type": "object",
       "required": ["key"],
@@ -96,6 +96,7 @@
         "user": {"type": "string"},
         "auth": {"enum": ["key", "password", "agent", ""]},
         "keyPath": {"type": "string"},
+        "platform": {"enum": ["", "windows", "linux", "cisco", "pfsense"]},
         "serial": {"type": "object", "properties": {
           "port": {"type": "string"}, "baud": {"type": "integer"}, "dataBits": {"type": "integer"},
           "parity": {"enum": ["none", "even", "odd", ""]}, "stopBits": {"enum": ["1", "2", ""]},

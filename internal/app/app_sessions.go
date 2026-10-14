@@ -130,7 +130,7 @@ func (a *App) OpenProfile(id int64, cols, rows int, password string, remember bo
 	switch c.Kind {
 	case "ssh":
 		cfg := conn.SSHConfig{Host: c.Host, Port: c.Port, User: c.User, Auth: c.Auth, KeyPath: c.KeyPath, Password: password}
-		info, err = a.addSession(c.Name, "ssh", "linux", func(h conn.Handlers) (conn.Session, error) { return conn.OpenSSH(cfg, cols, rows, h) })
+		info, err = a.addSession(c.Name, "ssh", c.SessionPlatform(), func(h conn.Handlers) (conn.Session, error) { return conn.OpenSSH(cfg, cols, rows, h) })
 		var uh *conn.UnknownHostError
 		switch {
 		case errors.As(err, &uh):
@@ -146,10 +146,10 @@ func (a *App) OpenProfile(id int64, cols, rows int, password string, remember bo
 			return OpenResult{Need: "password"}, nil
 		}
 	case "telnet":
-		info, err = a.addSession(c.Name, "telnet", "", func(h conn.Handlers) (conn.Session, error) { return conn.OpenTelnet(c.Host, c.Port, h) })
+		info, err = a.addSession(c.Name, "telnet", c.SessionPlatform(), func(h conn.Handlers) (conn.Session, error) { return conn.OpenTelnet(c.Host, c.Port, h) })
 	case "serial":
 		sc := conn.SerialConfig{Port: c.Serial.Port, Baud: c.Serial.Baud, DataBits: c.Serial.DataBits, Parity: c.Serial.Parity, StopBits: c.Serial.StopBits, LineEnd: c.Serial.LineEnd}
-		info, err = a.addSession(c.Name, "serial", "", func(h conn.Handlers) (conn.Session, error) { return conn.OpenSerial(sc, h) })
+		info, err = a.addSession(c.Name, "serial", c.SessionPlatform(), func(h conn.Handlers) (conn.Session, error) { return conn.OpenSerial(sc, h) })
 	default:
 		return OpenResult{}, errors.New("unknown connection kind")
 	}

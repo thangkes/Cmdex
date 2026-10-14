@@ -17,6 +17,8 @@
   "conn.kind.ssh": "SSH",
   "conn.kind.telnet": "Telnet",
   "conn.kind.serial": "COM / Serial",
+  "conn.device": "Loại thiết bị",
+  "conn.deviceAuto": "Tự động (Linux nếu qua SSH)",
   "conn.name": "Tên",
   "conn.namePh": "ví dụ web-01",
   "conn.host": "Địa chỉ máy",

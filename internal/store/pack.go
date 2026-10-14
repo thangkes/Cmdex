@@ -101,13 +101,16 @@ type PackParam struct {
 	Required    bool   `json:"required,omitempty"`
 }
 
-// PackExplain explains one program in a pack.
+// PackExplain explains one program in a pack. With Platform set to a
+// device (cisco, pfsense), it explains the command on that device only; on
+// a keyword platform (cisco) Flags are the keywords that may follow it.
 type PackExplain struct {
-	Cmd     string              `json:"cmd"`
-	Summary Text                `json:"summary"`
-	Flags   map[string]PackFlag `json:"flags,omitempty"`
-	Letters map[string]Text     `json:"letters,omitempty"`
-	Args    []Text              `json:"args,omitempty"`
+	Cmd      string              `json:"cmd"`
+	Platform string              `json:"platform,omitempty"`
+	Summary  Text                `json:"summary"`
+	Flags    map[string]PackFlag `json:"flags,omitempty"`
+	Letters  map[string]Text     `json:"letters,omitempty"`
+	Args     []Text              `json:"args,omitempty"`
 }
 
 // PackFlag explains one option in a pack.
@@ -154,7 +157,7 @@ func packCommand(pc PackCommand, lang, source string) Command {
 
 // packExplain is a pack's explanation in language lang.
 func packExplain(pe PackExplain, lang, source string) Explain {
-	e := Explain{Cmd: pe.Cmd, Summary: pe.Summary.In(lang), Flags: map[string]Flag{}, Letters: map[string]string{}, Args: []string{}, Source: source}
+	e := Explain{Cmd: ExplainKey(pe.Platform, strings.ToLower(pe.Cmd)), Summary: pe.Summary.In(lang), Flags: map[string]Flag{}, Letters: map[string]string{}, Args: []string{}, Source: source}
 	for k, f := range pe.Flags {
 		e.Flags[k] = Flag{Text: f.Text.In(lang), Value: f.Value}
 	}
@@ -362,6 +365,19 @@ func Fill(tpl string, values map[string]string) string {
 		b.WriteByte(tpl[i])
 	}
 	return b.String()
+}
+
+// ExplainedOn lists the commands explained for device platform p, without
+// the "p:" prefix (to resolve abbreviations such as "sh" for "show").
+func (s *Store) ExplainedOn(p string) []string {
+	names, _ := s.explainNames()
+	var out []string
+	for _, n := range names {
+		if strings.HasPrefix(n, p+":") {
+			out = append(out, n[len(p)+1:])
+		}
+	}
+	return out
 }
 
 // explainNames lists the programs explained in either database.

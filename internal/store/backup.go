@@ -277,9 +277,7 @@ func (s *Store) importBackup(b Backup, replace bool) (BackupResult, error) {
 			r.Rejected++
 			continue
 		}
-		switch c.Platform {
-		case Windows, Linux, Both:
-		default:
+		if !ValidPlatform(c.Platform) {
 			c.Platform = Both
 		}
 		if c.Source == "" {
@@ -424,8 +422,11 @@ func (s *Store) importBackup(b Backup, replace bool) (BackupResult, error) {
 		if c.Created == 0 {
 			c.Created = now()
 		}
-		if _, err := tx.Exec("INSERT INTO connections(kind, name, host, port, user, auth, key_path, serial, created) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)",
-			c.Kind, c.Name, c.Host, c.Port, c.User, c.Auth, c.KeyPath, string(serial), c.Created); err != nil {
+		if !validDevice(c.Platform) {
+			c.Platform = ""
+		}
+		if _, err := tx.Exec("INSERT INTO connections(kind, name, host, port, user, auth, key_path, serial, created, platform) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			c.Kind, c.Name, c.Host, c.Port, c.User, c.Auth, c.KeyPath, string(serial), c.Created, c.Platform); err != nil {
 			return r, err
 		}
 		r.Connections++

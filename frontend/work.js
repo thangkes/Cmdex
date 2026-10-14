@@ -106,7 +106,7 @@ function activate(id) {
   const s = Work.sessions.get(id);
   if (s) requestAnimationFrame(() => { try { s.fit.fit(); } catch (e) {} s.term.focus(); });
   renderTabs();
-  if (Work.query && !isExplainMode()) runSearch(); // results follow the session's platform
+  refreshRight(); // results and explanations follow the session's platform (a Cisco switch…)
   renderBuilderButtons();
 }
 
@@ -249,7 +249,7 @@ async function showConnForm(p) {
   const form = clear(document.getElementById("connForm"));
   if (form.hidden === false && !p && !Work.editing) { form.hidden = true; return; }
   Work.editing = p || null;
-  const c = p ? JSON.parse(JSON.stringify(p)) : { id: 0, kind: "ssh", name: "", host: "", port: 22, user: "", auth: "key", keyPath: "~/.ssh/id_ed25519", serial: { port: "", baud: 9600, dataBits: 8, parity: "none", stopBits: "1", lineEnd: "cr" } };
+  const c = p ? JSON.parse(JSON.stringify(p)) : { id: 0, kind: "ssh", platform: "", name: "", host: "", port: 22, user: "", auth: "key", keyPath: "~/.ssh/id_ed25519", serial: { port: "", baud: 9600, dataBits: 8, parity: "none", stopBits: "1", lineEnd: "cr" } };
   form.hidden = false;
   const ports = (await api.SerialPorts().catch(() => [])) || [];
   const draw = () => {
@@ -257,6 +257,10 @@ async function showConnForm(p) {
     const kindSeg = h("div", { class: "seg", role: "group", "aria-label": t("conn.kind") },
       ["ssh", "telnet", "serial"].map(k => h("button", { type: "button", "aria-pressed": String(c.kind === k), onclick: () => { c.kind = k; if (k === "telnet" && (!c.port || c.port === 22)) c.port = 23; if (k === "ssh" && (!c.port || c.port === 23)) c.port = 22; draw(); } }, t("conn.kind." + k))));
     form.appendChild(kindSeg);
+    // the kind of device: suggestions and explanations follow it
+    const device = h("select", {}, ["", "linux", "windows", "cisco", "pfsense"].map(d => h("option", { value: d, selected: (c.platform || "") === d }, d ? osLabel(d) : t("conn.deviceAuto"))));
+    device.onchange = () => { c.platform = device.value; };
+    form.appendChild(h("label", { class: "field" }, t("conn.device"), device));
     const name = h("input", { type: "text", value: c.name, placeholder: t("conn.namePh") });
     name.oninput = () => { c.name = name.value; };
     // the secret is entered on the secure keypad, never typed
@@ -343,7 +347,7 @@ function isExplainMode() { return Work.forced ? Work.forced === "explain" : !!Wo
 
 const onQuery = debounce(async () => {
   Work.query = document.getElementById("q").value;
-  Work.looksCmd = Work.query.trim() ? await api.LooksLikeCommand(Work.query).catch(() => false) : false;
+  Work.looksCmd = Work.query.trim() ? await api.LooksLikeCommand(Work.query, activePlatform()).catch(() => false) : false;
   refreshRight();
 }, 160);
 
@@ -434,7 +438,7 @@ async function runExplain() {
   const pane = document.getElementById("explainPane");
   const line = Work.query;
   let res;
-  try { res = await api.Explain(line); } catch (e) { setStatus(errText(e), true); return; }
+  try { res = await api.Explain(line, activePlatform()); } catch (e) { setStatus(errText(e), true); return; }
   if (line !== Work.query) return; // typed on meanwhile
   Work.explainRes = res;
   clear(pane);
