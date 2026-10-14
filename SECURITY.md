@@ -20,13 +20,13 @@ Please report vulnerabilities privately through GitHub: **Security ▸ Report a 
 | Imported files | Backups and packs are validated; a `.db` file is read from a copy with `trusted_schema` off. An imported command is always yours, never shown as a starter command: it cannot hide a starter command behind one of its own, and a copy of a starter command keeps that link only when it runs the same line, never asking less before running. Exported files are readable by their owner only. |
 | Clearing the collected log | Deleted lines are erased from the disk (the database file is rewritten, its journal emptied), in the database and in the copy made when upgrading to 0.1.3 (`cmdex.db.bak-v1`). That copy is readable by its owner only and gets the same secret masking as the database. |
 | Starter commands | Built at start from the packs inside the program into a separate, read-only database; checked like any command. What you change lives in your own database, which updates never rewrite. |
-| Updates | Downloaded from this repository's releases over HTTPS and installed only when the SHA-256 matches the published `SHA256SUMS.txt`. |
+| Updates | Downloaded from this repository's releases over HTTPS. From 0.1.6, a release is installed only when its `SHA256SUMS.txt` carries a valid Ed25519 signature (`SHA256SUMS.txt.sig`) by the release key kept on the maintainer's computer (or the offline backup key), and the file's SHA-256 matches it: a compromised GitHub account alone cannot ship an update. The release script checks both builds against the checksums before signing. |
 | `tools/devserve` (development only) | Listens on loopback only; every call needs a per-run token, the exact `Host`, and a JSON body (no cross-site requests, no DNS rebinding). |
 
 ## Known limits
 
 - Telnet is unencrypted by design; use it only on trusted networks.
-- Release files are not code-signed yet, so their integrity rests on this GitHub repository.
+- Release files are not code-signed (Authenticode) yet, so Windows SmartScreen may warn on first install; updates are protected by the signed checksums above.
 - The library database is not encrypted at rest; it holds host names, user names and masked command history, protected by your user account's file permissions.
 - **Correction (2026-10-14):** in 0.1.5 and earlier, ▶ Run pastes a command and presses Enter at once, whatever its safety level: "ask before running" and "copy only" are stored but **not enforced** (earlier versions of this file and of the 0.1.4/0.1.5 release notes said otherwise). Update to 0.1.6 or later, where ▶ only pastes.
 - Risk labels come from patterns: a dangerous command written in an unusual way may not be labelled. Read a command before pressing Enter.
