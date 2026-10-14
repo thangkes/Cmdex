@@ -246,3 +246,15 @@ func TestPackFilesAreUTF8WithBOM(t *testing.T) {
 		}
 	}
 }
+
+// Every starter command declares at least the risk Cmdex detects in it,
+// so the pack files themselves say which commands are dangerous.
+func TestPackRiskDeclared(t *testing.T) {
+	for _, p := range All() {
+		for _, c := range p.Commands {
+			if d := store.DetectRisk(c.Template, c.Platform); c.Danger < d {
+				t.Errorf("%s: %q declares %d, detected %d", p.Name, c.Template, c.Danger, d)
+			}
+		}
+	}
+}

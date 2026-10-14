@@ -104,7 +104,7 @@ type Command struct {
 	Template string   `json:"template"`
 	Purpose  string   `json:"purpose"`
 	Notes    string   `json:"notes"`
-	Danger   int      `json:"danger"` // 0 run at once, 1 ask first, 2 copy only
+	Danger   int      `json:"danger"` // declared risk: RiskNormal, RiskWarning, RiskCritical
 	Tags     []string `json:"tags"`
 	Envs     []string `json:"envs"`
 	Params   []Param  `json:"params"`
@@ -113,6 +113,7 @@ type Command struct {
 	Created  int64    `json:"created"`
 	Updated  int64    `json:"updated"`
 	BaseKey  string   `json:"baseKey,omitempty"` // the default this command replaces (CommandKey)
+	Risk     int      `json:"risk"`              // shown risk: the higher of Danger and DetectRisk
 	Base     bool     `json:"base,omitempty"`    // a default, shipped with the program (negative ID)
 }
 
@@ -363,6 +364,7 @@ func scanCommand(sc interface{ Scan(...any) error }) (Command, error) {
 	if json.Unmarshal([]byte(params), &c.Params) != nil || c.Params == nil {
 		c.Params = []Param{}
 	}
+	c.Risk = RiskOf(c.Danger, c.Template, c.Platform)
 	return c, nil
 }
 

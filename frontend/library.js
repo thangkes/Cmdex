@@ -42,7 +42,7 @@ async function renderLibrary() {
     const shown = Library.cmds.filter(c => shownByFilter(c) && (!f || (c.name + " " + c.template + " " + c.category + " " + c.tags.join(" ")).toLowerCase().includes(f)));
     for (const c of shown) {
       items.appendChild(h("button", { type: "button", class: "libitem", "aria-pressed": String(!Library.draft && c.id === Library.sel), onclick: () => { Library.sel = c.id; Library.draft = null; renderLibrary(); } },
-        h("span", { class: "row between" }, h("b", {}, c.name), h("span", { class: "os " + c.platform }, osLabel(c.platform))),
+        h("span", { class: "row between" }, h("b", {}, c.name), h("span", { class: "row" }, riskBadge(c.risk), h("span", { class: "os " + c.platform }, osLabel(c.platform)))),
         h("code", { class: "mono" }, c.template),
         h("span", { class: "muted" }, [c.category, t("lib.uses", { n: c.uses })].filter(Boolean).join(" · "))));
     }
@@ -110,7 +110,8 @@ function editor(c0) {
   box.appendChild(h("div", { class: "grid2" },
     field(t("lib.purpose"), area("purpose")), field(t("lib.notes"), area("notes")),
     field(t("lib.tags"), tags), field(t("lib.envs"), envs),
-    field(t("lib.safety"), select("danger", [[0, t("lib.safety0")], [1, t("lib.safety1")], [2, t("lib.safety2")]]))));
+    h("div", { class: "field" }, field(t("lib.safety"), select("danger", [[0, t("lib.safety0")], [1, t("lib.safety1")], [2, t("lib.safety2")]])),
+      c.id && c.risk > c.danger ? h("small", { class: "note" }, t("lib.riskDetected", { r: t("risk." + c.risk) })) : null)));
 
   const save = async () => {
     try {

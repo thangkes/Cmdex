@@ -22,6 +22,7 @@ type session struct {
 	kind     string
 	platform string // windows, linux or "" (devices)
 	conn     conn.Session
+	pasted   string // the line ▶ pasted, until the next key: Enter runs it
 }
 
 type pendingHost struct {
@@ -208,8 +209,19 @@ func (a *App) SessionWrite(id, b64 string) error {
 	if err != nil {
 		return err
 	}
-	_, err = s.conn.Write(b)
-	return err
+	// a pasted line counts as run only when the next key is Enter: a line
+	// edited first, or not run, is not collected
+	a.mu.Lock()
+	line := s.pasted
+	s.pasted = ""
+	a.mu.Unlock()
+	if _, err := s.conn.Write(b); err != nil {
+		return err
+	}
+	if line != "" && (string(b) == "\r" || string(b) == "\n") && a.coll != nil && a.store.Setting("collect.session", "1") == "1" {
+		a.coll.Add(line, "session:"+s.name)
+	}
+	return nil
 }
 
 // SessionResize passes the terminal size on.
@@ -242,14 +254,15 @@ func (a *App) Run(id, line string, commandID int64) error {
 	if err := store.CheckCommandText(line); err != nil {
 		return err // never paste a line that runs differently from how it looks
 	}
-	if _, err := s.conn.Write([]byte(line + "\r")); err != nil {
+	// pasted only: the user reads it in the terminal and presses Enter
+	if _, err := s.conn.Write([]byte(line)); err != nil {
 		return err
 	}
+	a.mu.Lock()
+	s.pasted = line
+	a.mu.Unlock()
 	if commandID != 0 { // negative: a default
 		a.store.AddUses(commandID, 1)
-	}
-	if a.coll != nil && a.store.Setting("collect.session", "1") == "1" {
-		a.coll.Add(line, "session:"+s.name)
 	}
 	return nil
 }

@@ -142,6 +142,14 @@ function filterBar(onChange) {
       FILTER_PLATFORMS.map(p => h("button", { type: "button", "aria-pressed": String(f.includes(p)), onclick: () => set(f.includes(p) ? f.filter(x => x !== p) : f.concat(p)) }, osLabel(p)))));
 }
 
+// riskBadge labels a command by what running it may do (store.Risk*):
+// nothing for a normal one.
+function riskBadge(level) {
+  if (level >= 2) return h("span", { class: "risk crit", title: t("risk.2hint") }, t("risk.2"));
+  if (level === 1) return h("span", { class: "risk warn", title: t("risk.1hint") }, t("risk.1"));
+  return null;
+}
+
 // explainKey: devices keep their own explanations ("cisco:show"), as the
 // app does (store.ExplainKey).
 function explainKey(platform, program) { return platform === "cisco" || platform === "pfsense" ? platform + ":" + program.toLowerCase() : program; }

@@ -381,7 +381,7 @@ async function runSearch() {
     const c = r.command;
     list.appendChild(h("button", { type: "button", class: "result", "aria-pressed": String(c.id === Work.sel), onclick: () => selectResult(c.id) },
       h("span", { class: "row between wrap" }, h("span", { class: "name" }, c.name),
-        h("span", { class: "row" }, h("span", { class: "os " + c.platform }, osLabel(c.platform)), query.trim() ? [h("span", { class: "bar" }, h("span", { style: { width: r.percent + "%" } })), h("span", { class: "mono muted" }, r.percent + "%")] : null)),
+        h("span", { class: "row" }, riskBadge(c.risk), h("span", { class: "os " + c.platform }, osLabel(c.platform)), query.trim() ? [h("span", { class: "bar" }, h("span", { style: { width: r.percent + "%" } })), h("span", { class: "mono muted" }, r.percent + "%")] : null)),
       h("code", {}, c.template)));
   }
   if (!res.length && query.trim()) list.appendChild(h("div", { class: "empty" }, t("search.none"), " ", h("button", { type: "button", class: "btn small", onclick: () => Library.newFromText(query) }, t("search.add"))));
@@ -419,7 +419,8 @@ function builder(c) {
   const vals = Work.vals[c.id] || (Work.vals[c.id] = {});
   const preview = h("pre", { class: "preview mono" });
   const update = () => { preview.textContent = fillTemplate(c.template, Object.assign(Object.fromEntries(c.params.map(p => [p.key, p.default])), vals)); };
-  box.appendChild(h("div", {}, h("div", { class: "row between" }, h("h3", {}, c.name), h("span", { class: "label-up" }, t("build.title"))), c.purpose ? h("p", { class: "soft", style: { margin: "2px 0 0" } }, c.purpose) : null));
+  box.appendChild(h("div", {}, h("div", { class: "row between" }, h("span", { class: "row" }, h("h3", {}, c.name), riskBadge(c.risk)), h("span", { class: "label-up" }, t("build.title"))), c.purpose ? h("p", { class: "soft", style: { margin: "2px 0 0" } }, c.purpose) : null));
+  if (c.risk >= 2) box.appendChild(h("p", { class: "risknote" }, t("risk.2note")));
   if (c.params.length) {
     const grid = h("div", { class: "grid2" });
     for (const p of c.params) {
@@ -433,7 +434,7 @@ function builder(c) {
   update();
   box.appendChild(preview);
   box.appendChild(h("div", { class: "row wrap", id: "buildBtns" },
-    h("button", { type: "button", class: "btn pri run", onclick: () => runLine(preview.textContent, c.id) }, "▶ " + t("run.in", { s: activeName() })),
+    h("button", { type: "button", class: "btn pri run", title: t("run.pasteHint"), onclick: () => runLine(preview.textContent, c.id) }, "▶ " + t("run.in", { s: activeName() })),
     h("button", { type: "button", class: "btn", onclick: () => { window.runtime.ClipboardSetText(preview.textContent); setStatus(t("common.copied")); } }, t("common.copy")),
     h("button", { type: "button", class: "btn ghost", onclick: () => Library.open(c.id) }, t("build.edit"))));
   if (c.notes) box.appendChild(h("p", { class: "note" }, c.notes));
@@ -453,10 +454,11 @@ async function runExplain() {
   Work.explainRes = res;
   clear(pane);
   const body = h("div", { style: { display: "flex", flexDirection: "column", gap: "12px" } });
+  if (res.risk) body.appendChild(h("div", { class: "row" }, riskBadge(res.risk), res.risk >= 2 ? h("span", { class: "risknote" }, t("risk.2note")) : null));
   renderExplain(body, res);
   pane.appendChild(body);
   pane.appendChild(h("div", { class: "row wrap", style: { marginTop: "12px" } },
-    h("button", { type: "button", class: "btn pri run", onclick: () => runLine(line, 0) }, "▶ " + t("run.in", { s: activeName() })),
+    h("button", { type: "button", class: "btn pri run", title: t("run.pasteHint"), onclick: () => runLine(line, 0) }, "▶ " + t("run.in", { s: activeName() })),
     h("button", { type: "button", class: "btn", onclick: () => { window.runtime.ClipboardSetText(line); setStatus(t("common.copied")); } }, t("common.copy")),
     h("button", { type: "button", class: "btn ghost", onclick: () => Library.newFromText(line) }, t("explain.save")),
     res.programs && res.programs.length ? h("button", { type: "button", class: "btn ghost", onclick: () => Library.editExplain(res.programs[0]) }, t("explain.edit", { p: res.programs[0] })) : null));

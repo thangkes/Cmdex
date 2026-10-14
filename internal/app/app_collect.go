@@ -203,6 +203,7 @@ func (a *App) ClearCollected() (int, error) { return a.store.ClearCollected(0) }
 type CollectedView struct {
 	store.Collected
 	Match collect.Match `json:"match"`
+	Risk  int           `json:"risk"`
 }
 
 // Collected lists groups with the given status ("" all, "pending", …).
@@ -217,7 +218,7 @@ func (a *App) Collected(status string) ([]CollectedView, error) {
 	}
 	out := make([]CollectedView, 0, len(list))
 	for _, c := range list {
-		v := CollectedView{Collected: c}
+		v := CollectedView{Collected: c, Risk: store.DetectRisk(c.Signature, a.platformFor(c.Source))}
 		if c.Status == store.StatusPending {
 			v.Match = collect.MatchLibrary(c.Signature, cmds, a.mergeAt())
 		} else {

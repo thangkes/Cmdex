@@ -45,7 +45,7 @@ function groupCard(g) {
   const open = !!Collect.open[g.id];
   const card = h("article", { class: "group" + (pendingG ? "" : " done") },
     h("div", { class: "row between wrap" }, h("code", { class: "mono" }, g.signature),
-      h("span", { class: "row" }, g.category ? h("span", { class: "tag" }, g.category) : null, h("span", { class: "pill " + (pendingG ? m.kind : g.status) }, pill))),
+      h("span", { class: "row" }, riskBadge(g.risk), g.category ? h("span", { class: "tag" }, g.category) : null, h("span", { class: "pill " + (pendingG ? m.kind : g.status) }, pill))),
     h("div", { class: "row wrap muted" },
       g.total ? t("collect.count", { n: g.total, v: g.variants.length }) : t("collect.cleared"), " · ", t("collect.source", { s: g.source }),
       g.secret ? h("span", { style: { color: "var(--bad-text)" } }, " · " + t("collect.secret")) : null));

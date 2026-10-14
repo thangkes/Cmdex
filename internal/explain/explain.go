@@ -33,6 +33,7 @@ type Result struct {
 	Segments []Segment `json:"segments"`
 	Programs []string  `json:"programs"` // in pipeline order
 	Missing  []string  `json:"missing"`  // programs nothing is known about
+	Risk     int       `json:"risk"`     // store.DetectRisk, set by the app
 }
 
 // Lookup returns what is known about a program (by Program name).

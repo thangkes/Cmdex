@@ -144,6 +144,7 @@ func (a *App) Explain(line, platform string) explain.Result {
 	lookup, opts := a.explainFor(platform)
 	res := explain.ExplainWith(line, lookup, msgs, opts)
 	defer func() {
+		res.Risk = store.DetectRisk(line, platform)
 		if store.KeywordCLI(platform) {
 			for i, p := range res.Programs {
 				res.Programs[i] = store.ExplainKey(platform, p)
