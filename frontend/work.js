@@ -357,26 +357,47 @@ function refreshRight() {
   if (explain) runExplain(); else runSearch();
 }
 
+// The search pane: the builder of the chosen command stays right under the
+// search box; the suggestions below it follow what is typed and scroll in
+// the space left.
 async function runSearch() {
-  const pane = document.getElementById("searchPane");
+  const query = Work.query;
   let res = [];
-  try { res = await api.Search(Work.query, activePlatform(), 8); } catch (e) { setStatus(errText(e), true); }
+  try { res = await api.Search(query, activePlatform(), 60); } catch (e) { setStatus(errText(e), true); }
+  if (query !== Work.query) return; // typed on meanwhile
   Work.results = res;
   if (!res.find(r => r.command.id === Work.sel)) Work.sel = res.length ? res[0].command.id : null;
-  clear(pane);
-  pane.appendChild(h("p", { class: "hint" }, Work.query.trim() ? t("search.found", { n: res.length, s: activeName() }) : t("search.recent")));
-  const list = h("div", { class: "results" });
+  document.getElementById("searchHint").textContent = query.trim() ? t("search.found", { n: res.length, s: activeName() }) : t("search.recent");
+  const list = clear(document.getElementById("results"));
   for (const r of res) {
     const c = r.command;
-    list.appendChild(h("button", { type: "button", class: "result", "aria-pressed": String(c.id === Work.sel), onclick: () => { Work.sel = c.id; runSearch(); } },
+    list.appendChild(h("button", { type: "button", class: "result", "aria-pressed": String(c.id === Work.sel), onclick: () => selectResult(c.id) },
       h("span", { class: "row between wrap" }, h("span", { class: "name" }, c.name),
-        h("span", { class: "row" }, h("span", { class: "os " + c.platform }, osLabel(c.platform)), Work.query.trim() ? [h("span", { class: "bar" }, h("span", { style: { width: r.percent + "%" } })), h("span", { class: "mono muted" }, r.percent + "%")] : null)),
+        h("span", { class: "row" }, h("span", { class: "os " + c.platform }, osLabel(c.platform)), query.trim() ? [h("span", { class: "bar" }, h("span", { style: { width: r.percent + "%" } })), h("span", { class: "mono muted" }, r.percent + "%")] : null)),
       h("code", {}, c.template)));
   }
-  if (!res.length && Work.query.trim()) list.appendChild(h("div", { class: "empty" }, t("search.none"), " ", h("button", { type: "button", class: "btn small", onclick: () => Library.newFromText(Work.query) }, t("search.add"))));
-  pane.appendChild(list);
-  const r = res.find(x => x.command.id === Work.sel);
-  if (r) pane.appendChild(builder(r.command));
+  if (!res.length && query.trim()) list.appendChild(h("div", { class: "empty" }, t("search.none"), " ", h("button", { type: "button", class: "btn small", onclick: () => Library.newFromText(query) }, t("search.add"))));
+  list.scrollTop = 0;
+  showBuilder();
+}
+
+// selectResult builds another suggestion without searching again.
+function selectResult(id) {
+  Work.sel = id;
+  document.querySelectorAll("#results .result").forEach((b, i) => b.setAttribute("aria-pressed", String(Work.results[i] && Work.results[i].command.id === id)));
+  showBuilder();
+}
+
+// showBuilder puts the chosen command in the builder; the same command is
+// left as it is, so values being typed are not lost.
+function showBuilder() {
+  const slot = document.getElementById("buildSlot");
+  const r = Work.results.find(x => x.command.id === Work.sel);
+  const key = r ? r.command.id + "\n" + r.command.template + "\n" + App.lang : "";
+  if (key && slot.dataset.key === key) return;
+  slot.dataset.key = key;
+  clear(slot);
+  slot.appendChild(r ? builder(r.command) : h("div", { class: "builder empty-build" }, h("div", { class: "label-up" }, t("build.title")), h("p", { class: "soft" }, t("build.pick"))));
 }
 
 function builder(c) {
@@ -384,7 +405,7 @@ function builder(c) {
   const vals = Work.vals[c.id] || (Work.vals[c.id] = {});
   const preview = h("pre", { class: "preview mono" });
   const update = () => { preview.textContent = fillTemplate(c.template, Object.assign(Object.fromEntries(c.params.map(p => [p.key, p.default])), vals)); };
-  box.appendChild(h("div", {}, h("div", { class: "label-up" }, t("build.title")), h("h3", {}, c.name), c.purpose ? h("p", { class: "soft", style: { margin: "4px 0 0" } }, c.purpose) : null));
+  box.appendChild(h("div", {}, h("div", { class: "row between" }, h("h3", {}, c.name), h("span", { class: "label-up" }, t("build.title"))), c.purpose ? h("p", { class: "soft", style: { margin: "2px 0 0" } }, c.purpose) : null));
   if (c.params.length) {
     const grid = h("div", { class: "grid2" });
     for (const p of c.params) {
@@ -402,7 +423,6 @@ function builder(c) {
     h("button", { type: "button", class: "btn", onclick: () => { window.runtime.ClipboardSetText(preview.textContent); setStatus(t("common.copied")); } }, t("common.copy")),
     h("button", { type: "button", class: "btn ghost", onclick: () => Library.open(c.id) }, t("build.edit"))));
   if (c.notes) box.appendChild(h("p", { class: "note" }, c.notes));
-  if (c.tags && c.tags.length) box.appendChild(h("div", { class: "tags" }, c.tags.map(x => h("span", { class: "tag" }, "#" + x))));
   return box;
 }
 

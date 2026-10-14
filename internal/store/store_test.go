@@ -135,3 +135,53 @@ func TestUntrustedSchema(t *testing.T) {
 		t.Fatalf("trusted_schema = %d (%v), want 0", v, err)
 	}
 }
+
+// Clearing the collected log drops the lines and the groups waiting for
+// review; decisions stay, so those commands do not come back for review.
+func TestClearCollected(t *testing.T) {
+	s := open(t)
+	id, _ := s.SaveCommand(Command{Name: "p", Platform: Windows, Template: "ping {host}"})
+	s.AddCollected("ping {host}", "", "powershell", false, "ping 1.1.1.1")
+	s.AddCollected("tracert {host}", "", "powershell", false, "tracert 1.1.1.1")
+	s.AddCollected("ipconfig /all", "", "powershell", false, "ipconfig /all")
+	list, _ := s.CollectedList("")
+	for _, g := range list {
+		switch g.Signature {
+		case "ping {host}":
+			s.SetCollectedAuto(g.ID, id)
+		case "ipconfig /all":
+			s.SetCollectedStatus(g.ID, StatusIgnored, 0)
+		}
+	}
+	// a merged group passes its new runs on to the library command
+	if tgt, err := s.AddCollected("ping {host}", "", "powershell", false, "ping 8.8.8.8"); err != nil || tgt != id {
+		t.Fatalf("%d %v", tgt, err)
+	}
+	if tgt, _ := s.AddCollected("tracert {host}", "", "powershell", false, "tracert 8.8.8.8"); tgt != 0 {
+		t.Fatalf("pending group returned target %d", tgt)
+	}
+
+	if n, err := s.ClearCollected(now() - 3600); err != nil || n != 0 {
+		t.Fatalf("nothing is an hour old: %d %v", n, err)
+	}
+	if n, err := s.ClearCollected(0); err != nil || n != 3 {
+		t.Fatalf("%d %v", n, err)
+	}
+	list, _ = s.CollectedList("")
+	if len(list) != 2 {
+		t.Fatalf("decisions must stay: %+v", list)
+	}
+	for _, g := range list {
+		if g.Total != 0 || len(g.Variants) != 0 || g.Status == StatusPending {
+			t.Fatalf("%+v", g)
+		}
+		if g.Signature == "ping {host}" && (!g.Auto || g.Target != id) {
+			t.Fatalf("auto merge lost: %+v", g)
+		}
+	}
+	// an ignored command run again stays ignored
+	s.AddCollected("ipconfig /all", "", "powershell", false, "ipconfig /all")
+	if p, _ := s.CollectedList(StatusPending); len(p) != 0 {
+		t.Fatalf("%+v", p)
+	}
+}

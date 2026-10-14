@@ -75,6 +75,7 @@ async function start() {
   showView("work");
   refreshCollectBadge();
   window.runtime.EventsOn("collect:new", () => { refreshCollectBadge(); if (App.view === "collect") renderCollect(); });
+  window.runtime.EventsOn("collect:merged", n => { setStatus(t("collect.autoMerged", { n })); refreshCollectBadge(); if (App.view === "collect") renderCollect(); });
   window.runtime.EventsOn("update:available", offerUpdate);
   openLocal(); // a ready shell, like any terminal
 }

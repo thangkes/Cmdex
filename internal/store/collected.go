@@ -29,6 +29,7 @@ type Collected struct {
 	Source    string    `json:"source"`
 	Status    string    `json:"status"`
 	Target    int64     `json:"target"` // library command it was merged into
+	Auto      bool      `json:"auto"`   // merged by the automatic merge, not by the user
 	Secret    bool      `json:"secret"`
 	FirstSeen int64     `json:"firstSeen"`
 	LastSeen  int64     `json:"lastSeen"`
@@ -37,44 +38,50 @@ type Collected struct {
 }
 
 // AddCollected counts one more run of raw under its template signature.
-// A group the user ignored keeps counting but stays ignored.
-func (s *Store) AddCollected(signature, category, source string, secret bool, raw string) error {
+// A group the user ignored keeps counting but stays ignored. When the group
+// was merged into a library command, that command is returned (its run
+// count should grow too); otherwise 0.
+func (s *Store) AddCollected(signature, category, source string, secret bool, raw string) (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	tx, err := s.db.Begin()
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer tx.Rollback()
 	t := now()
-	var id int64
-	err = tx.QueryRow("SELECT id FROM collected WHERE signature = ?", signature).Scan(&id)
+	var id, target int64
+	var status string
+	err = tx.QueryRow("SELECT id, status, IFNULL(target, 0) FROM collected WHERE signature = ?", signature).Scan(&id, &status, &target)
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
 		res, err := tx.Exec("INSERT INTO collected(signature, category, source, secret, first_seen, last_seen) VALUES(?, ?, ?, ?, ?, ?)",
 			signature, category, source, secret, t, t)
 		if err != nil {
-			return err
+			return 0, err
 		}
 		if id, err = res.LastInsertId(); err != nil {
-			return err
+			return 0, err
 		}
 	case err != nil:
-		return err
+		return 0, err
 	default:
 		if _, err := tx.Exec("UPDATE collected SET last_seen = ?, secret = secret OR ? WHERE id = ?", t, secret, id); err != nil {
-			return err
+			return 0, err
 		}
 	}
 	if _, err := tx.Exec("INSERT INTO variants(collected_id, raw, count) VALUES(?, ?, 1) ON CONFLICT(collected_id, raw) DO UPDATE SET count = count + 1", id, raw); err != nil {
-		return err
+		return 0, err
 	}
-	return tx.Commit()
+	if status != StatusMerged {
+		target = 0
+	}
+	return target, tx.Commit()
 }
 
 // CollectedList returns groups with the given status ("" for all), most run first.
 func (s *Store) CollectedList(status string) ([]Collected, error) {
-	rows, err := s.db.Query(`SELECT c.id, c.signature, c.category, c.source, c.status, IFNULL(c.target, 0), c.secret, c.first_seen, c.last_seen,
+	rows, err := s.db.Query(`SELECT c.id, c.signature, c.category, c.source, c.status, IFNULL(c.target, 0), c.auto, c.secret, c.first_seen, c.last_seen,
 			IFNULL((SELECT SUM(count) FROM variants v WHERE v.collected_id = c.id), 0) AS total
 		FROM collected c WHERE ? = '' OR c.status = ? ORDER BY total DESC, c.last_seen DESC`, status, status)
 	if err != nil {
@@ -83,7 +90,7 @@ func (s *Store) CollectedList(status string) ([]Collected, error) {
 	out := []Collected{}
 	for rows.Next() {
 		var c Collected
-		if err := rows.Scan(&c.ID, &c.Signature, &c.Category, &c.Source, &c.Status, &c.Target, &c.Secret, &c.FirstSeen, &c.LastSeen, &c.Total); err != nil {
+		if err := rows.Scan(&c.ID, &c.Signature, &c.Category, &c.Source, &c.Status, &c.Target, &c.Auto, &c.Secret, &c.FirstSeen, &c.LastSeen, &c.Total); err != nil {
 			rows.Close()
 			return nil, err
 		}
@@ -114,14 +121,57 @@ func (s *Store) CollectedList(status string) ([]Collected, error) {
 
 // SetCollectedStatus records what the user decided for a group.
 func (s *Store) SetCollectedStatus(id int64, status string, target int64) error {
+	return s.setCollected(id, status, target, false)
+}
+
+// SetCollectedAuto records a merge made by the automatic merge.
+func (s *Store) SetCollectedAuto(id int64, target int64) error {
+	return s.setCollected(id, StatusMerged, target, true)
+}
+
+func (s *Store) setCollected(id int64, status string, target int64, auto bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var tgt any
 	if target != 0 { // negative: a default
 		tgt = target
 	}
-	_, err := s.db.Exec("UPDATE collected SET status = ?, target = ? WHERE id = ?", status, tgt, id)
+	_, err := s.db.Exec("UPDATE collected SET status = ?, target = ?, auto = ? WHERE id = ?", status, tgt, auto, id)
 	return err
+}
+
+// ClearCollected deletes the collected log: the command lines seen, and
+// the groups still waiting for review. Groups the user decided on (added,
+// merged, ignored) are kept without their lines, so those commands do not
+// come back for review. With before > 0, only groups last seen before that
+// time (Unix seconds) are cleared. It returns how many groups were cleared.
+func (s *Store) ClearCollected(before int64) (int, error) {
+	if before <= 0 {
+		before = 1 << 62
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	tx, err := s.db.Begin()
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
+	var n int
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM collected WHERE last_seen < ?
+		AND (status = 'pending' OR id IN (SELECT collected_id FROM variants))`, before).Scan(&n); err != nil || n == 0 {
+		return 0, err
+	}
+	if _, err := tx.Exec("DELETE FROM variants WHERE collected_id IN (SELECT id FROM collected WHERE last_seen < ?)", before); err != nil {
+		return 0, err
+	}
+	if _, err := tx.Exec("DELETE FROM collected WHERE status = 'pending' AND last_seen < ?", before); err != nil {
+		return 0, err
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, err
+	}
+	s.db.Exec("PRAGMA wal_checkpoint(TRUNCATE)") // the lines also leave the journal file
+	return n, nil
 }
 
 // ---- connections -------------------------------------------------------------
@@ -285,7 +335,8 @@ func (s *Store) RewriteVariants(fix func(raw string) (line, signature string, se
 			return changed, err
 		}
 	}
-	if _, err := tx.Exec("DELETE FROM collected WHERE id NOT IN (SELECT DISTINCT collected_id FROM variants)"); err != nil {
+	// groups left empty go, except decisions (kept by ClearCollected without their lines)
+	if _, err := tx.Exec("DELETE FROM collected WHERE status = 'pending' AND id NOT IN (SELECT DISTINCT collected_id FROM variants)"); err != nil {
 		return changed, err
 	}
 	return changed, tx.Commit()

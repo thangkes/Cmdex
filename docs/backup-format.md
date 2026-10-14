@@ -70,6 +70,7 @@ Collected command lines are stored with secrets already masked (`•••••
     "secret": false,
     "firstSeen": 1792000000, "lastSeen": 1792000500,
     "target": {"platform": "windows", "template": "ping {host} -n {count}"},   // for added / merged
+    "auto": false,                   // merged by the automatic merge (Collect settings)
     "variants": [{"raw": "ping 10.0.0.1 -n 4", "count": 3}]
   }],
 

@@ -86,7 +86,14 @@ func (c *Collector) add(raw, source string, r rules) bool {
 	}
 	// every command is kept, "cd {path}" and a lone "cls" too: for someone
 	// new to the terminal those are the first ones worth finding again
-	return c.Store.AddCollected(l.Signature, r.category[l.Program], source, l.Secret, l.Raw) == nil
+	target, err := c.Store.AddCollected(l.Signature, r.category[l.Program], source, l.Secret, l.Raw)
+	if err != nil {
+		return false
+	}
+	if target != 0 { // merged into a library command: the run counts there
+		c.Store.AddUses(target, 1)
+	}
+	return true
 }
 
 // Scan reads what was appended to each enabled history file since the last
@@ -197,9 +204,14 @@ type Match struct {
 	Percent int    `json:"percent"`
 }
 
+// DefaultSimilarity is the share of words (percent) from which a collected
+// template is offered as resembling a library command, unless the user sets
+// another level in the Collect settings.
+const DefaultSimilarity = 75
+
 // MatchLibrary finds the library command a template duplicates (same shape)
-// or resembles (same program, at least 70% of words in common).
-func MatchLibrary(sig string, cmds []store.Command) Match {
+// or resembles (same program, at least minPercent of words in common).
+func MatchLibrary(sig string, cmds []store.Command, minPercent int) Match {
 	shape := Shape(sig)
 	prog := firstProgram(sig)
 	best := Match{Kind: "new"}
@@ -211,9 +223,10 @@ func MatchLibrary(sig string, cmds []store.Command) Match {
 		if firstProgram(c.Template) != prog {
 			continue
 		}
-		if s := Similarity(sig, c.Template); s >= 0.7 && s > bestSim {
+		s := Similarity(sig, c.Template)
+		if p := int(s*100 + 0.5); p >= minPercent && s > bestSim {
 			bestSim = s
-			best = Match{Kind: "near", Target: c.ID, Name: c.Name, Percent: int(s*100 + 0.5)}
+			best = Match{Kind: "near", Target: c.ID, Name: c.Name, Percent: p}
 		}
 	}
 	return best

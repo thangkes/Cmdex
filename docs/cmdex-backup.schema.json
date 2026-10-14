@@ -114,6 +114,7 @@
         "firstSeen": {"type": "integer"},
         "lastSeen": {"type": "integer"},
         "target": {"type": "object", "properties": {"platform": {"$ref": "#/$defs/platform"}, "template": {"type": "string"}}},
+        "auto": {"type": "boolean"},
         "variants": {"type": "array", "items": {"type": "object", "properties": {"raw": {"type": "string"}, "count": {"type": "integer"}}}}
       }
     }

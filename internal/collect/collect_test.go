@@ -71,13 +71,13 @@ func TestMatchLibrary(t *testing.T) {
 		{ID: 1, Name: "Ping", Template: "ping {host} -n {count}"},
 		{ID: 2, Name: "Port owner", Template: "netstat -ano | findstr :{port}"},
 	}
-	if m := MatchLibrary("ping {host} -n {n}", lib); m.Kind != "existing" || m.Target != 1 {
+	if m := MatchLibrary("ping {host} -n {n}", lib, DefaultSimilarity); m.Kind != "existing" || m.Target != 1 {
 		t.Fatalf("%+v", m)
 	}
-	if m := MatchLibrary("netstat -ano | findstr {n}", lib); m.Kind != "near" || m.Target != 2 {
+	if m := MatchLibrary("netstat -ano | findstr {n}", lib, DefaultSimilarity); m.Kind != "near" || m.Target != 2 {
 		t.Fatalf("%+v", m)
 	}
-	if m := MatchLibrary("ipconfig /all", lib); m.Kind != "new" {
+	if m := MatchLibrary("ipconfig /all", lib, DefaultSimilarity); m.Kind != "new" {
 		t.Fatalf("%+v", m)
 	}
 }
@@ -274,5 +274,24 @@ func TestBackfill(t *testing.T) {
 	}
 	if len(got) != 4 || got["ping {host} -n {count}"] != 1 || got["cd {path}"] != 1 || got["ls"] != 1 || got["cd .."] != 1 {
 		t.Fatalf("%+v", got)
+	}
+}
+
+// Runs of a command merged into the library count on that command.
+func TestMergedRunsCount(t *testing.T) {
+	s, err := store.Open(filepath.Join(t.TempDir(), "c.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	id, _ := s.SaveCommand(store.Command{Name: "p", Platform: store.Windows, Template: "ping {host}"})
+	c := &Collector{Store: s}
+	c.Add("ping 1.1.1.1", "powershell")
+	g, _ := s.CollectedList("")
+	s.SetCollectedStatus(g[0].ID, store.StatusMerged, id)
+	c.Add("ping 8.8.8.8", "powershell")
+	c.Add("ping 9.9.9.9", "powershell")
+	if cmd, _ := s.Command(id); cmd.Uses != 2 {
+		t.Fatalf("uses %d, want 2", cmd.Uses)
 	}
 }

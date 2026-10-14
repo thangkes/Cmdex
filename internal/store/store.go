@@ -229,6 +229,8 @@ var migrations = []string{
 		hidden INTEGER NOT NULL DEFAULT 0,
 		PRIMARY KEY(kind, key)
 	);`,
+	// 3: groups merged by the automatic merge (Collect settings) are marked
+	`ALTER TABLE collected ADD COLUMN auto INTEGER NOT NULL DEFAULT 0;`,
 }
 
 func (s *Store) migrate() error {

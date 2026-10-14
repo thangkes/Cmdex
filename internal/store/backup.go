@@ -62,6 +62,7 @@ type BackupCollected struct {
 	FirstSeen int64       `json:"firstSeen"`
 	LastSeen  int64       `json:"lastSeen"`
 	Target    *CommandRef `json:"target,omitempty"`
+	Auto      bool        `json:"auto,omitempty"` // merged by the automatic merge
 	Variants  []Variant   `json:"variants"`
 }
 
@@ -144,7 +145,7 @@ func (s *Store) ExportBackup(app string) (Backup, error) {
 	if b.Connections, err = s.Connections(); err != nil {
 		return b, err
 	}
-	groups, err := s.db.Query("SELECT id, signature, category, source, status, IFNULL(target, 0), secret, first_seen, last_seen FROM collected ORDER BY id")
+	groups, err := s.db.Query("SELECT id, signature, category, source, status, IFNULL(target, 0), auto, secret, first_seen, last_seen FROM collected ORDER BY id")
 	if err != nil {
 		return b, err
 	}
@@ -156,7 +157,7 @@ func (s *Store) ExportBackup(app string) (Backup, error) {
 	var gs []grp
 	for groups.Next() {
 		var g grp
-		if err := groups.Scan(&g.id, &g.bc.Signature, &g.bc.Category, &g.bc.Source, &g.bc.Status, &g.target, &g.bc.Secret, &g.bc.FirstSeen, &g.bc.LastSeen); err != nil {
+		if err := groups.Scan(&g.id, &g.bc.Signature, &g.bc.Category, &g.bc.Source, &g.bc.Status, &g.target, &g.bc.Auto, &g.bc.Secret, &g.bc.FirstSeen, &g.bc.LastSeen); err != nil {
 			groups.Close()
 			return b, err
 		}
@@ -447,8 +448,8 @@ func (s *Store) importBackup(b Backup, replace bool) (BackupResult, error) {
 		var gid int64
 		err := tx.QueryRow("SELECT id FROM collected WHERE signature = ?", g.Signature).Scan(&gid)
 		if errors.Is(err, sql.ErrNoRows) {
-			res, err := tx.Exec("INSERT INTO collected(signature, category, source, status, target, secret, first_seen, last_seen) VALUES(?, ?, ?, ?, ?, ?, ?, ?)",
-				g.Signature, g.Category, g.Source, g.Status, target, g.Secret, g.FirstSeen, g.LastSeen)
+			res, err := tx.Exec("INSERT INTO collected(signature, category, source, status, target, auto, secret, first_seen, last_seen) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)",
+				g.Signature, g.Category, g.Source, g.Status, target, g.Auto && g.Status == StatusMerged, g.Secret, g.FirstSeen, g.LastSeen)
 			if err != nil {
 				return r, err
 			}

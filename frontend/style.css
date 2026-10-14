@@ -118,7 +118,10 @@ input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; }
 .searchbox input { flex: 1; min-width: 0; border: 0; background: transparent; height: 46px; font-size: 15px; padding: 0; }
 .searchbox input:focus { outline: none; }
 .searchbox:focus-within { outline: 2px solid var(--accent); }
-.results { display: flex; flex-direction: column; gap: 6px; }
+.searchpane { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
+.searchpane[hidden] { display: none; }
+.searchpane .hint { margin: 0; }
+.results { display: flex; flex-direction: column; gap: 6px; flex: 1 1 auto; min-height: 160px; overflow-y: auto; padding-right: 4px; }
 .result { text-align: left; width: 100%; display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border-radius: 10px; cursor: pointer; border: 1px solid var(--line); background: var(--bg); }
 .result[aria-pressed="true"] { border-color: var(--accent); background: var(--sel); }
 .result .name { font-weight: 600; }
@@ -129,7 +132,11 @@ input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; }
 .os.both { background: var(--warn-bg); color: var(--code); }
 .bar { width: 64px; height: 5px; background: var(--line); border-radius: 999px; overflow: hidden; display: inline-block; }
 .bar span { display: block; height: 100%; background: var(--accent); }
-.builder { border-top: 1px solid var(--line); padding-top: 12px; display: flex; flex-direction: column; gap: 10px; }
+.builder { border: 1px solid var(--line); border-radius: 12px; background: var(--panel-2); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.builder h3 { margin: 0; font-size: 15px; }
+.builder .note { margin: 0; }
+.builder .grid2 { gap: 8px; }
+.builder.empty-build p { margin: 0; }
 .label-up { font-size: 11px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--accent); }
 .preview { margin: 0; background: var(--term); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 14px; color: var(--prompt); white-space: pre-wrap; word-break: break-all; }
 .tags { display: flex; flex-wrap: wrap; gap: 4px; }
@@ -213,5 +220,6 @@ table.params input[type=text], table.params select { width: 100%; min-height: 32
   body { overflow: auto; }
   #app { height: auto; min-height: 100vh; }
   .view.work { flex-direction: column; overflow: visible; }
+  .results { overflow: visible; min-height: 0; }
   .terminal { min-height: 420px; }
 }

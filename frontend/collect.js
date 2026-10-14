@@ -31,6 +31,7 @@ async function renderCollect() {
 
   const side = h("div", { class: "col-side" });
   if (settings) side.appendChild(sourcesPanel(settings));
+  if (settings) side.appendChild(mergePanel(settings));
   side.appendChild(rulesPanel(rules));
   view.appendChild(side);
 }
@@ -40,15 +41,15 @@ function groupCard(g) {
   const pendingG = g.status === "pending";
   const pill = pendingG
     ? (m.kind === "existing" ? t("collect.dup", { name: m.name }) : m.kind === "near" ? t("collect.near", { pct: m.percent, name: m.name }) : t("collect.new"))
-    : t("collect.status." + g.status);
+    : t(g.auto ? "collect.status.auto" : "collect.status." + g.status);
   const open = !!Collect.open[g.id];
   const card = h("article", { class: "group" + (pendingG ? "" : " done") },
     h("div", { class: "row between wrap" }, h("code", { class: "mono" }, g.signature),
       h("span", { class: "row" }, g.category ? h("span", { class: "tag" }, g.category) : null, h("span", { class: "pill " + (pendingG ? m.kind : g.status) }, pill))),
     h("div", { class: "row wrap muted" },
-      t("collect.count", { n: g.total, v: g.variants.length }), " · ", t("collect.source", { s: g.source }),
+      g.total ? t("collect.count", { n: g.total, v: g.variants.length }) : t("collect.cleared"), " · ", t("collect.source", { s: g.source }),
       g.secret ? h("span", { style: { color: "var(--bad-text)" } }, " · " + t("collect.secret")) : null));
-  if (open) card.appendChild(h("ul", { class: "variants mono" }, g.variants.map(v => h("li", {}, h("span", {}, v.raw), h("span", { class: "muted" }, "×" + v.count)))));
+  if (open && g.variants.length) card.appendChild(h("ul", { class: "variants mono" }, g.variants.map(v => h("li", {}, h("span", {}, v.raw), h("span", { class: "muted" }, "×" + v.count)))));
   const act = (action, target) => async () => {
     try {
       const id = await api.CollectDecide(g.id, action, target || 0);
@@ -66,7 +67,7 @@ function groupCard(g) {
     if (g.status === "added" && g.target) row.appendChild(h("button", { type: "button", class: "btn small", onclick: () => Library.open(g.target) }, t("collect.openLib")));
     row.appendChild(h("button", { type: "button", class: "btn small", onclick: act("undo") }, t("collect.undo")));
   }
-  row.appendChild(h("button", { type: "button", class: "btn ghost small", "aria-expanded": String(open), onclick: () => { Collect.open[g.id] = !open; renderCollect(); } }, open ? t("collect.hide") : t("collect.show")));
+  if (g.variants.length) row.appendChild(h("button", { type: "button", class: "btn ghost small", "aria-expanded": String(open), onclick: () => { Collect.open[g.id] = !open; renderCollect(); } }, open ? t("collect.hide") : t("collect.show")));
   card.appendChild(row);
   return card;
 }
@@ -84,6 +85,34 @@ function sourcesPanel(s) {
   if (!s.sources.length) p.appendChild(h("p", { class: "note" }, t("collect.noHistory")));
   p.appendChild(sw(t("collect.src.session"), t("collect.src.sessionNote"), s.session, v => api.SetCollectSwitch("session", v)));
   p.appendChild(h("p", { class: "note" }, t("collect.privacy")));
+  return p;
+}
+
+// mergePanel: the automatic merge and its similarity level, and clearing
+// the collected log. Nothing is added to the library without the user.
+function mergePanel(s) {
+  const p = h("section", { class: "panel", style: { display: "flex", flexDirection: "column", gap: "10px" } }, h("h2", {}, t("collect.mergeTitle")));
+  p.appendChild(sw(t("collect.autoMerge"), t("collect.autoMergeNote"), s.autoMerge, async v => {
+    await api.SetCollectSwitch("automerge", v).catch(e => setStatus(errText(e), true));
+    renderCollect();
+  }));
+  const levels = h("div", { class: "seg", role: "group", "aria-label": t("collect.level") },
+    s.levels.map(l => h("button", { type: "button", "aria-pressed": String(l === s.mergeAt), onclick: async () => {
+      await api.SetCollectLevel("mergeAt", l).catch(e => setStatus(errText(e), true));
+      renderCollect();
+    } }, l + "%")));
+  p.appendChild(h("div", { class: "field" }, h("span", {}, t("collect.level")), levels));
+  p.appendChild(h("p", { class: "note", style: { margin: "-4px 0 0" } }, t("collect.levelNote")));
+
+  const days = h("select", { "aria-label": t("collect.autoClear") }, s.clearDays.map(d => h("option", { value: d, selected: d === s.autoClear }, d ? t("collect.days", { n: d }) : t("collect.never"))));
+  days.onchange = () => api.SetCollectLevel("autoClear", Number(days.value)).catch(e => setStatus(errText(e), true));
+  p.appendChild(h("label", { class: "field" }, h("span", {}, t("collect.autoClear")), days));
+  p.appendChild(h("button", { type: "button", class: "btn danger small", onclick: async () => {
+    if (!await confirmDialog(t("collect.clear"), t("collect.clearQ"), t("collect.clear"), true)) return;
+    try { const n = await api.ClearCollected(); setStatus(t("collect.clearedN", { n })); renderCollect(); refreshCollectBadge(); }
+    catch (e) { setStatus(errText(e), true); }
+  } }, t("collect.clear")));
+  p.appendChild(h("p", { class: "note" }, t("collect.clearNote")));
   return p;
 }
 
