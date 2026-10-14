@@ -129,6 +129,7 @@ type ImportResult struct {
 
 // ParsePack reads a pack file.
 func ParsePack(b []byte) (Pack, error) {
+	b = bytes.TrimPrefix(b, BOM)
 	var p Pack
 	if err := json.Unmarshal(b, &p); err != nil {
 		return p, err

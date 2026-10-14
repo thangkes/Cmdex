@@ -226,3 +226,29 @@ func TestConnectionDeviceType(t *testing.T) {
 		t.Fatal("a connection cannot be Windows and Linux at once")
 	}
 }
+
+// The platform filter, as chosen with the user: a Windows + Linux command
+// shows when either is chosen, and hides when only devices are.
+func TestShown(t *testing.T) {
+	cases := []struct {
+		p      string
+		filter []string
+		want   bool
+	}{
+		{Both, nil, true},
+		{Both, []string{Windows}, true},
+		{Both, []string{Linux}, true},
+		{Both, []string{Windows, Cisco}, true},
+		{Both, []string{Cisco}, false},
+		{Both, []string{Cisco, PfSense}, false},
+		{Windows, []string{Linux}, false},
+		{Cisco, []string{Windows}, false},
+		{Cisco, []string{Windows, Cisco}, true},
+		{PfSense, nil, true},
+	}
+	for _, c := range cases {
+		if got := Shown(c.p, c.filter); got != c.want {
+			t.Errorf("%s with %v: %v, want %v", c.p, c.filter, got, c.want)
+		}
+	}
+}

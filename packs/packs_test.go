@@ -1,9 +1,11 @@
 package packs
 
 import (
+	"bytes"
 	"path/filepath"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/thangkes/cmdex/internal/explain"
 	"github.com/thangkes/cmdex/internal/search"
@@ -90,6 +92,14 @@ func TestStarterPacks(t *testing.T) {
 		find("restart service", "windows", "Restart-Service")
 		find("tìm tiến trình đang giữ cổng", "windows", "netstat -ano")
 		find("dns", "windows", "nslookup")
+		find("mở khóa tài khoản domain", "windows", "Unlock-ADAccount")
+		find("máy in bị kẹt", "windows", "Spooler")
+		find("đồng bộ giờ", "windows", "w32tm")
+		find("map ổ mạng", "windows", "net use {drive}")
+		find("chứng chỉ website hết hạn", "linux", "openssl s_client")
+		find("sức khỏe ổ đĩa", "linux", "smartctl")
+		find("mở cổng firewalld", "linux", "firewall-cmd --permanent")
+		find("dịch vụ bị lỗi", "linux", "systemctl --failed")
 
 		lookup := func(p string) (store.Explain, bool) { return s.Explain(p) }
 		for line, want := range map[string]string{
@@ -98,6 +108,11 @@ func TestStarterPacks(t *testing.T) {
 			"curl -sSIL https://x.example":   "cmd flag arg",
 			"tar -czvf b.tar.gz /etc":        "cmd flag arg arg",
 			"robocopy C:\\a D:\\b /MIR /R:2": "cmd arg arg flag flag",
+			"gpresult /r":                    "cmd flag",
+			"w32tm /query /status":           "cmd flag flag",
+			"sudo firewall-cmd --list-all":   "cmd cmd flag",
+			"sudo lsof -i :8080":             "cmd cmd flag",
+			"sudo smartctl -H /dev/sda":      "cmd cmd flag arg",
 		} {
 			r := explain.Explain(line, lookup, explain.MessagesEN)
 			var k []string
@@ -208,6 +223,26 @@ func TestDevicePacks(t *testing.T) {
 	for _, sg := range r.Segments {
 		if (sg.Kind == "cmd" || sg.Kind == "flag") && !sg.Known {
 			t.Errorf("pfsense: %q not explained", sg.Title)
+		}
+	}
+}
+
+// Pack files are UTF-8 with a BOM, so Windows editors show Vietnamese
+// right; the BOM must not reach the commands.
+func TestPackFilesAreUTF8WithBOM(t *testing.T) {
+	entries, _ := files.ReadDir(".")
+	for _, e := range entries {
+		b, _ := files.ReadFile(e.Name())
+		if !bytes.HasPrefix(b, store.BOM) {
+			t.Errorf("%s: no UTF-8 BOM", e.Name())
+		}
+		if !utf8.Valid(b) {
+			t.Errorf("%s: not valid UTF-8", e.Name())
+		}
+	}
+	for _, p := range All() {
+		if strings.ContainsRune(p.Name, '\ufeff') || strings.ContainsRune(p.Commands[0].Template, '\ufeff') {
+			t.Errorf("%s: BOM leaked into the pack", p.Name)
 		}
 	}
 }

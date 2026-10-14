@@ -33,13 +33,14 @@ func FromHelp(ctx context.Context, prog string) (store.Explain, bool) {
 	var parse func(string) store.Explain
 	if runtime.GOOS == "windows" {
 		if strings.Contains(prog, "-") { // Verb-Noun: a PowerShell cmdlet
+			// UTF-8 out: PowerShell 5 writes to a pipe in the console code page
 			out = run(ctx, "powershell.exe", "-NoProfile", "-NonInteractive", "-Command",
-				"Get-Help "+prog+" -Full | Out-String -Width 250")
+				"[Console]::OutputEncoding = [Text.Encoding]::UTF8; Get-Help "+prog+" -Full | Out-String -Width 250")
 			parse = parsePowerShellHelp
 		} else if sys := os.Getenv("SystemRoot"); sys != "" {
 			exe := filepath.Join(sys, "System32", prog+".exe")
 			if _, err := os.Stat(exe); err == nil && safeForHelp(prog, exe) {
-				out = run(ctx, exe, "/?")
+				out = fromConsole(run(ctx, exe, "/?")) // in the console code page (localized Windows)
 				parse = parseOptionList
 			}
 		}

@@ -52,11 +52,19 @@ func (a *App) Fill(template string, values map[string]string) string {
 }
 
 // Search ranks the library against a request. platform ("windows", "linux"
-// or "") puts commands for the active session first.
+// or "") puts commands for the active session first. Only the systems the
+// user filtered to are searched.
 func (a *App) Search(query, platform string, limit int) ([]search.Result, error) {
-	cmds, err := a.store.Commands()
+	all, err := a.store.Commands()
 	if err != nil {
 		return nil, err
+	}
+	filter := a.PlatformFilter()
+	cmds := all[:0:0]
+	for _, c := range all {
+		if store.Shown(c.Platform, filter) {
+			cmds = append(cmds, c)
+		}
 	}
 	syn, _ := a.store.Synonyms()
 	res := search.Rank(cmds, query, normalizeSyn(syn), platform, limit)
@@ -201,6 +209,9 @@ func (a *App) ImportFile() (store.ImportResult, error) {
 	if err != nil {
 		return store.ImportResult{}, err
 	}
+	if b, err = store.DecodeText(b); err != nil {
+		return store.ImportResult{}, err
+	}
 	p, err := store.ParsePack(b)
 	if err != nil {
 		return store.ImportResult{}, err
@@ -229,7 +240,41 @@ func (a *App) ExportFile() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return path, os.WriteFile(path, b, 0o600)
+	return path, os.WriteFile(path, store.WithBOM(append(b, '\n')), 0o600) // BOM: Windows tools read Vietnamese right
+}
+
+// PlatformFilter returns the systems whose commands are shown in search and
+// in the library (empty: all).
+func (a *App) PlatformFilter() []string {
+	out := []string{}
+	for _, p := range strings.Split(a.store.Setting("filter.platforms", ""), ",") {
+		for _, q := range store.FilterPlatforms {
+			if p == q {
+				out = append(out, p)
+			}
+		}
+	}
+	if len(out) == len(store.FilterPlatforms) {
+		return []string{} // every system chosen is the same as all
+	}
+	return out
+}
+
+// SetPlatformFilter chooses the systems whose commands are shown (none:
+// all). Commands keep their platform; nothing in the library changes.
+func (a *App) SetPlatformFilter(platforms []string) error {
+	var keep []string
+	for _, p := range store.FilterPlatforms {
+		for _, q := range platforms {
+			if p == q {
+				keep = append(keep, p)
+			}
+		}
+	}
+	if len(keep) == len(store.FilterPlatforms) {
+		keep = nil
+	}
+	return a.store.SetSetting("filter.platforms", strings.Join(keep, ","))
 }
 
 // Synonyms returns the search synonyms.

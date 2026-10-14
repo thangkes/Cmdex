@@ -1,6 +1,7 @@
 package store
 
 import (
+	"bytes"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -198,6 +199,7 @@ func (s *Store) ExportBackup(app string) (Backup, error) {
 
 // ParseBackup reads a backup file and checks it is one this version reads.
 func ParseBackup(data []byte) (Backup, error) {
+	data = bytes.TrimPrefix(data, BOM)
 	var b Backup
 	if err := json.Unmarshal(data, &b); err != nil {
 		return b, err
@@ -216,7 +218,7 @@ func IsBackup(data []byte) bool {
 	var probe struct {
 		Format string `json:"format"`
 	}
-	return json.Unmarshal(data, &probe) == nil && probe.Format == BackupFormat
+	return json.Unmarshal(bytes.TrimPrefix(data, BOM), &probe) == nil && probe.Format == BackupFormat
 }
 
 // ImportBackup loads a backup. With replace, the library is emptied first

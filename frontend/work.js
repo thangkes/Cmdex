@@ -371,7 +371,11 @@ async function runSearch() {
   if (query !== Work.query) return; // typed on meanwhile
   Work.results = res;
   if (!res.find(r => r.command.id === Work.sel)) Work.sel = res.length ? res[0].command.id : null;
-  document.getElementById("searchHint").textContent = query.trim() ? t("search.found", { n: res.length, s: activeName() }) : t("search.recent");
+  let hint = query.trim() ? t("search.found", { n: res.length, s: activeName() }) : t("search.recent");
+  const ap = activePlatform();
+  if (ap && !shownByFilter({ platform: ap })) hint += " · " + t("filter.hidesSession", { p: osLabel(ap) });
+  document.getElementById("searchHint").textContent = hint;
+  drawFilter();
   const list = clear(document.getElementById("results"));
   for (const r of res) {
     const c = r.command;
@@ -383,6 +387,12 @@ async function runSearch() {
   if (!res.length && query.trim()) list.appendChild(h("div", { class: "empty" }, t("search.none"), " ", h("button", { type: "button", class: "btn small", onclick: () => Library.newFromText(query) }, t("search.add"))));
   list.scrollTop = 0;
   showBuilder();
+}
+
+// drawFilter shows the platform filter above the builder.
+function drawFilter() {
+  const slot = clear(document.getElementById("filterSlot"));
+  slot.appendChild(filterBar(() => { Work.sel = null; runSearch(); }));
 }
 
 // selectResult builds another suggestion without searching again.

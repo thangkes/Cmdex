@@ -12,6 +12,8 @@ Not in a backup, on purpose:
 
 Collected command lines are stored with secrets already masked (`••••••`).
 
+**Encoding.** Files Cmdex writes (backups and packs) are UTF-8 **with a BOM**, so Windows tools that guess the encoding (old Notepad, Excel, PowerShell 5's `Get-Content`) show Vietnamese correctly. Cmdex reads UTF-8 with or without a BOM, and UTF-16 with a BOM (Notepad's "Unicode", PowerShell 5's `>`); a file in a legacy encoding (Windows-1258…) is refused rather than read as broken letters. Some JSON tools reject a BOM: in Python use `open(path, encoding="utf-8-sig")`.
+
 ```jsonc
 {
   "format": "cmdex-backup",          // required, exactly this
@@ -114,6 +116,8 @@ Cố ý **không** có trong file sao lưu:
 - vị trí đã đọc trong file lịch sử shell của máy cũ.
 
 Lệnh thu thập được lưu ở dạng đã che bí mật (`••••••`).
+
+**Bảng mã.** File Cmdex ghi ra (sao lưu, gói lệnh) là UTF-8 **có BOM**, để Notepad bản cũ, Excel hay `Get-Content` của PowerShell 5 hiển thị đúng tiếng Việt. Cmdex đọc được UTF-8 có hoặc không BOM, và UTF-16 có BOM (Notepad lưu "Unicode", lệnh `>` của PowerShell 5). File bảng mã cũ (Windows-1258…) bị từ chối thay vì nạp chữ vỡ. Một số công cụ JSON không nhận BOM: với Python dùng `open(path, encoding="utf-8-sig")`.
 
 **Hai chế độ khi nạp:**
 - **Gộp:**

@@ -118,6 +118,30 @@ function debounce(fn, ms) {
 
 function osLabel(p) { return { windows: "Windows", linux: "Linux", cisco: "Cisco", pfsense: "pfSense" }[p] || "Win + Linux"; }
 
+// The platform filter: which systems' commands are shown (empty: all), as
+// store.Shown decides. Commands keep their platform badge.
+const FILTER_PLATFORMS = ["windows", "linux", "cisco", "pfsense"];
+function shownByFilter(c) {
+  const f = (App.info && App.info.filter) || [];
+  return !f.length || f.includes(c.platform) || (c.platform === "both" && (f.includes("windows") || f.includes("linux")));
+}
+
+// filterBar draws the filter: "All" or any set of systems; onChange runs
+// after it is saved.
+function filterBar(onChange) {
+  const f = (App.info && App.info.filter) || [];
+  const set = async next => {
+    if (next.length === FILTER_PLATFORMS.length) next = [];
+    try { await api.SetPlatformFilter(next); App.info.filter = next; } catch (e) { setStatus(errText(e), true); return; }
+    onChange();
+  };
+  return h("div", { class: "row wrap filterbar" },
+    h("span", { class: "muted" }, t("filter.label")),
+    h("div", { class: "seg", role: "group", "aria-label": t("filter.label") },
+      h("button", { type: "button", "aria-pressed": String(!f.length), onclick: () => set([]) }, t("filter.all")),
+      FILTER_PLATFORMS.map(p => h("button", { type: "button", "aria-pressed": String(f.includes(p)), onclick: () => set(f.includes(p) ? f.filter(x => x !== p) : f.concat(p)) }, osLabel(p)))));
+}
+
 // explainKey: devices keep their own explanations ("cisco:show"), as the
 // app does (store.ExplainKey).
 function explainKey(platform, program) { return platform === "cisco" || platform === "pfsense" ? platform + ":" + program.toLowerCase() : program; }

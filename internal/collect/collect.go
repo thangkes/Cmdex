@@ -157,6 +157,9 @@ func readLines(r io.Reader, kind string) ([]string, int64) {
 		}
 		read += int64(len(line))
 		line = strings.TrimRight(line, "\r\n")
+		// a BOM at the start of the file is not part of the command, and a
+		// line in a legacy encoding must not be stored as broken text
+		line = strings.ToValidUTF8(strings.TrimPrefix(line, "\ufeff"), "\ufffd")
 		switch kind {
 		case "zsh":
 			// ": 1700000000:0;command"

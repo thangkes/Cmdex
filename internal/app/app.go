@@ -90,15 +90,16 @@ func (a *App) lang() string { return a.store.Setting("lang", systemLang()) }
 
 // Info is what the page needs at start.
 type Info struct {
-	Version  string `json:"version"`
-	OS       string `json:"os"`
-	Lang     string `json:"lang"`
-	Theme    string `json:"theme"`
-	DBPath   string `json:"dbPath"`
-	Defaults string `json:"defaults"` // the defaults database
-	DBError  string `json:"dbError"`
-	Shell    string `json:"shell"`
-	Hostname string `json:"hostname"`
+	Version  string   `json:"version"`
+	OS       string   `json:"os"`
+	Lang     string   `json:"lang"`
+	Theme    string   `json:"theme"`
+	DBPath   string   `json:"dbPath"`
+	Defaults string   `json:"defaults"` // the defaults database
+	Filter   []string `json:"filter"`   // systems shown (empty: all)
+	DBError  string   `json:"dbError"`
+	Shell    string   `json:"shell"`
+	Hostname string   `json:"hostname"`
 }
 
 // Init returns the start-up information.
@@ -112,6 +113,7 @@ func (a *App) Init() Info {
 	}
 	info.Lang = a.lang()
 	info.Defaults = a.store.DefaultsPath()
+	info.Filter = a.PlatformFilter()
 	info.Theme = a.store.Setting("theme", "graphite")
 	info.Shell = shellLabel()
 	return info

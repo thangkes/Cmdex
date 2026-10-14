@@ -58,6 +58,9 @@ func loadImport(path string) (loaded, error) {
 	if err != nil {
 		return loaded{}, err
 	}
+	if data, err = store.DecodeText(data); err != nil { // UTF-8 with or without BOM, UTF-16
+		return loaded{}, err
+	}
 	if store.IsBackup(data) {
 		b, err := store.ParseBackup(data)
 		return loaded{kind: "backup", backup: b}, err
@@ -150,7 +153,7 @@ func (a *App) writeBackup(path string) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, append(data, '\n'), 0o600)
+	return os.WriteFile(path, store.WithBOM(append(data, '\n')), 0o600) // BOM: Windows tools read Vietnamese right
 }
 
 // ExportDatabaseFile saves a copy of the database file itself.

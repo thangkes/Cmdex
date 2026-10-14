@@ -39,7 +39,7 @@ async function renderLibrary() {
   const drawItems = () => {
     clear(items);
     const f = Library.filter.toLowerCase();
-    const shown = Library.cmds.filter(c => !f || (c.name + " " + c.template + " " + c.category + " " + c.tags.join(" ")).toLowerCase().includes(f));
+    const shown = Library.cmds.filter(c => shownByFilter(c) && (!f || (c.name + " " + c.template + " " + c.category + " " + c.tags.join(" ")).toLowerCase().includes(f)));
     for (const c of shown) {
       items.appendChild(h("button", { type: "button", class: "libitem", "aria-pressed": String(!Library.draft && c.id === Library.sel), onclick: () => { Library.sel = c.id; Library.draft = null; renderLibrary(); } },
         h("span", { class: "row between" }, h("b", {}, c.name), h("span", { class: "os " + c.platform }, osLabel(c.platform))),
@@ -49,7 +49,10 @@ async function renderLibrary() {
     if (!shown.length) items.appendChild(h("p", { class: "muted" }, t("lib.noneMatch")));
   };
   filter.oninput = () => { Library.filter = filter.value; drawItems(); };
-  list.appendChild(h("div", { class: "row between wrap" }, h("h2", {}, t("lib.title")), h("span", { class: "muted" }, t("lib.count", { n: Library.cmds.length }))));
+  const inFilter = Library.cmds.filter(shownByFilter).length;
+  list.appendChild(h("div", { class: "row between wrap" }, h("h2", {}, t("lib.title")),
+    h("span", { class: "muted" }, inFilter === Library.cmds.length ? t("lib.count", { n: Library.cmds.length }) : t("lib.countFiltered", { n: inFilter, total: Library.cmds.length }))));
+  list.appendChild(filterBar(renderLibrary));
   list.appendChild(h("div", { class: "row wrap" },
     h("button", { type: "button", class: "btn pri small", onclick: () => Library.newFromText("") }, t("lib.new")),
     h("button", { type: "button", class: "btn small", onclick: importAny }, t("lib.import")),

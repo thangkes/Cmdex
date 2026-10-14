@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/thangkes/cmdex/internal/store"
 )
@@ -104,6 +105,10 @@ func TestScanReadsOnlyNewLines(t *testing.T) {
 	lines, _ = readLines(strings.NewReader(": 1700000000:0;ssh bob@h\nGet-Thing `\n  -Name x\n"), "zsh")
 	if lines[0] != "ssh bob@h" || lines[1] != "Get-Thing -Name x" {
 		t.Fatalf("%q", lines)
+	}
+	// a BOM is not part of the first command; broken bytes do not reach the database
+	if l, _ := readLines(strings.NewReader("\ufeffipconfig /all\ncd C:\\c\xf4ng\n"), "powershell"); l[0] != "ipconfig /all" || !utf8.ValidString(l[1]) {
+		t.Fatalf("%q", l)
 	}
 
 	c := &Collector{Store: s}

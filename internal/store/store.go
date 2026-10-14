@@ -48,6 +48,25 @@ func ValidPlatform(p string) bool {
 	return false
 }
 
+// Shown reports whether a command for platform p is shown when the user
+// filters the library to the systems in filter (none: all). A command for
+// Both (Windows and Linux) shows when either is chosen; it does not run on
+// a device, so it hides when only devices are chosen.
+func Shown(p string, filter []string) bool {
+	if len(filter) == 0 {
+		return true
+	}
+	for _, f := range filter {
+		if f == p || (p == Both && (f == Windows || f == Linux)) {
+			return true
+		}
+	}
+	return false
+}
+
+// FilterPlatforms are the systems the user may filter the library to.
+var FilterPlatforms = []string{Windows, Linux, Cisco, PfSense}
+
 // IsDevice reports whether p is a network device rather than a computer.
 func IsDevice(p string) bool { return p == Cisco || p == PfSense }
 
