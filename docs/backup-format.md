@@ -95,7 +95,9 @@ Collected command lines are stored with secrets already masked (`•••••
 | Settings | taken from the file | taken from the file |
 | Starter commands deleted / run counts (`baseState`) | deleted on either side stays deleted; the larger count | the file's |
 
-Version 1 files (Cmdex 0.1) held the starter commands as your own: copies you never edited are matched to the starter commands (only their run counts are kept), edited ones become your copies.
+Version 1 files (Cmdex 0.1) held the starter commands as your own: copies you never edited are matched to the starter commands (only their run counts are kept), edited ones become your commands.
+
+An imported command is always yours: `source: "pack:…"` becomes `user`, and `baseKey` is kept only when the command runs exactly the starter command's line (its safety level is then never lower than the starter command's). So a file cannot pass its commands off as starter commands.
 
 Importing the same file twice changes nothing the second time. A Cmdex database file (`.db`) can be imported the same way; it is read from a copy and never changed.
 
@@ -120,6 +122,8 @@ Lệnh thu thập được lưu ở dạng đã che bí mật (`•••••�
   - Nạp lại cùng một file lần nữa không thay đổi gì.
 - **Thay thế toàn bộ:** xóa sạch thư viện hiện tại rồi nạp file.
 
-File phiên bản 1 (Cmdex 0.1) chứa lệnh mẫu như lệnh của bạn: lệnh mẫu chưa sửa được ghép với lệnh mẫu có sẵn (chỉ giữ số lần dùng), lệnh đã sửa thành bản của bạn.
+File phiên bản 1 (Cmdex 0.1) chứa lệnh mẫu như lệnh của bạn: lệnh mẫu chưa sửa được ghép với lệnh mẫu có sẵn (chỉ giữ số lần dùng), lệnh đã sửa thành lệnh của bạn.
+
+Lệnh nhập từ file luôn là lệnh của bạn: `source: "pack:…"` đổi thành `user`, và `baseKey` chỉ được giữ khi lệnh chạy đúng dòng lệnh của lệnh mẫu (mức an toàn khi đó không thấp hơn lệnh mẫu). Nhờ vậy một file lạ không thể giả làm lệnh mẫu.
 
 File database `.db` cũng nạp được theo cùng cách. Cmdex đọc từ một bản chép nên file gốc không bị thay đổi.

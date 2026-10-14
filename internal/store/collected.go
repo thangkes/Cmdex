@@ -144,33 +144,32 @@ func (s *Store) setCollected(id int64, status string, target int64, auto bool) e
 // the groups still waiting for review. Groups the user decided on (added,
 // merged, ignored) are kept without their lines, so those commands do not
 // come back for review. With before > 0, only groups last seen before that
-// time (Unix seconds) are cleared. It returns how many groups were cleared.
+// time (Unix seconds) are cleared. The file is then rewritten so the lines
+// cannot be read back from the disk, and the same is done in the backup
+// copy (BackupPath). It returns how many groups were cleared.
 func (s *Store) ClearCollected(before int64) (int, error) {
 	if before <= 0 {
 		before = 1 << 62
 	}
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	tx, err := s.db.Begin()
+	n, err := clearCollectedIn(s.db, before)
+	if err == nil && n > 0 {
+		err = erase(s.db)
+	}
+	s.mu.Unlock()
 	if err != nil {
-		return 0, err
+		return n, err
 	}
-	defer tx.Rollback()
-	var n int
-	if err := tx.QueryRow(`SELECT COUNT(*) FROM collected WHERE last_seen < ?
-		AND (status = 'pending' OR id IN (SELECT collected_id FROM variants))`, before).Scan(&n); err != nil || n == 0 {
-		return 0, err
+	if bak, err := s.openBackup(); err == nil {
+		defer bak.Close()
+		if m, err := clearCollectedIn(bak, before); err != nil {
+			return n, err
+		} else if m > 0 {
+			if err := erase(bak); err != nil {
+				return n, err
+			}
+		}
 	}
-	if _, err := tx.Exec("DELETE FROM variants WHERE collected_id IN (SELECT id FROM collected WHERE last_seen < ?)", before); err != nil {
-		return 0, err
-	}
-	if _, err := tx.Exec("DELETE FROM collected WHERE status = 'pending' AND last_seen < ?", before); err != nil {
-		return 0, err
-	}
-	if err := tx.Commit(); err != nil {
-		return 0, err
-	}
-	s.db.Exec("PRAGMA wal_checkpoint(TRUNCATE)") // the lines also leave the journal file
 	return n, nil
 }
 

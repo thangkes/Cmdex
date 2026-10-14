@@ -294,8 +294,13 @@ func (s *Store) importBackup(b Backup, replace bool) (BackupResult, error) {
 		params, _ := json.Marshal(nonNilParams(c.Params))
 		ref := CommandRef{c.Platform, c.Template}
 		key := CommandKey(c.Platform, c.Template)
-		if idx.commands[c.BaseKey] == 0 {
-			c.BaseKey = "" // not a default (any more)
+		if idx.commands[c.BaseKey] == 0 || c.BaseKey != key {
+			// not a default (any more), or a copy that runs something else
+			// than the default: a file cannot pass it off as a starter command
+			c.BaseKey = ""
+		}
+		if c.BaseKey != "" && c.Danger < idx.danger[key] {
+			c.Danger = idx.danger[key] // nor make it ask less before running
 		}
 		if c.BaseKey == "" && strings.HasPrefix(c.Source, "pack:") && c.Updated == c.Created && idx.commands[key] != 0 {
 			// a copy of a default made by Cmdex 0.1, never edited: the default is here
@@ -306,6 +311,9 @@ func (s *Store) importBackup(b Backup, replace bool) (BackupResult, error) {
 			ids[ref] = idx.commands[key]
 			r.Kept++
 			continue
+		}
+		if strings.HasPrefix(c.Source, "pack:") {
+			c.Source = "user" // only Cmdex itself says a command is a starter command
 		}
 		var id, updated int64
 		var uses int

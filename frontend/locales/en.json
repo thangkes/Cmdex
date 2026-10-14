@@ -132,7 +132,7 @@
   "collect.src.session": "Commands run through Cmdex",
   "collect.src.sessionNote": "▶ Run and the command box; never what you type at a password prompt",
   "collect.noHistory": "No shell history file found for this user.",
-  "collect.privacy": "Everything collected stays on this computer.",
+  "collect.privacy": "Everything collected stays on this computer. The lines as you ran them (folders included) are never put in a shared pack; a full backup does hold them.",
   "collect.status.auto": "Merged automatically",
   "collect.cleared": "log cleared",
   "collect.mergeTitle": "Merging & log",

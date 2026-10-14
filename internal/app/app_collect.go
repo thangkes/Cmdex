@@ -315,9 +315,10 @@ func platformFor(source string) string {
 }
 
 // defaultFor takes a parameter's default from the most-run line, except
-// for secrets.
+// for secrets and folders: a folder names the user's own work (a customer,
+// a project, the user name), and library commands travel in shared packs.
 func defaultFor(g *store.Collected, key string) string {
-	if strings.HasPrefix(key, "secret") || len(g.Variants) == 0 {
+	if strings.HasPrefix(key, "secret") || strings.HasPrefix(key, "path") || len(g.Variants) == 0 {
 		return ""
 	}
 	tpl := explain.Lex(g.Signature)

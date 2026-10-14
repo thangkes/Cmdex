@@ -299,17 +299,41 @@ func (c *Collector) Rescrub() (int, error) {
 	if c.Store.Setting("collect.scrub", "1") == scrubVersion {
 		return 0, nil
 	}
-	r := c.rules()
-	n, err := c.Store.RewriteVariants(func(raw string) (string, string, bool, bool) {
-		l, ok := Normalize(raw, r.secret)
-		return l.Raw, l.Signature, l.Secret, ok
-	})
+	fixLine, fixTemplate := c.fixers()
+	n, err := c.Store.RewriteVariants(fixLine)
 	if err != nil {
 		return n, err
 	}
-	m, err := c.Store.RewriteTemplates(func(t string) string { out, _ := Redact(t, r.secret); return out })
+	m, err := c.Store.RewriteTemplates(fixTemplate)
 	if err != nil {
 		return n + m, err
 	}
 	return n + m, c.Store.SetSetting("collect.scrub", scrubVersion)
+}
+
+// fixers clean a collected line (mask, regroup) and a collected template
+// (mask) with today's rules.
+func (c *Collector) fixers() (func(string) (string, string, bool, bool), func(string) string) {
+	r := c.rules()
+	return func(raw string) (string, string, bool, bool) {
+			l, ok := Normalize(raw, r.secret)
+			return l.Raw, l.Signature, l.Secret, ok
+		}, func(t string) string {
+			out, _ := Redact(t, r.secret)
+			return out
+		}
+}
+
+// ScrubBackup does Rescrub's work in the backup copy of the database
+// (store.BackupPath), once per scrubVersion: a copy made before the
+// database was cleaned must not keep what was cleaned.
+func (c *Collector) ScrubBackup() error {
+	if c.Store.Setting("collect.bakScrub", "") == scrubVersion {
+		return nil
+	}
+	fixLine, fixTemplate := c.fixers()
+	if _, err := c.Store.ScrubBackup(fixLine, fixTemplate); err != nil {
+		return err
+	}
+	return c.Store.SetSetting("collect.bakScrub", scrubVersion)
 }

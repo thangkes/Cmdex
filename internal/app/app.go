@@ -62,11 +62,14 @@ func (a *App) startup(ctx context.Context) {
 		a.dbErr = err.Error()
 		return
 	}
+	a.coll = &collect.Collector{Store: a.store}
+	// secrets missed by an older Cmdex are masked once, before anything
+	// (the backup copy made on upgrade) is copied
+	a.coll.Rescrub()
 	if err := a.store.UseDefaults(packs.All(), a.lang()); err != nil {
 		a.dbErr = err.Error() // the user's own library still works
 	}
-	a.coll = &collect.Collector{Store: a.store}
-	a.coll.Rescrub() // secrets missed by an older Cmdex are masked once
+	a.coll.ScrubBackup() // a copy made by Cmdex 0.1.3 before that
 	go a.collectLoop()
 	go a.updateLoop()
 	go cleanDownloads()

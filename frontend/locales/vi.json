@@ -132,7 +132,7 @@
   "collect.src.session": "Lệnh chạy qua Cmdex",
   "collect.src.sessionNote": "Nút ▶ Chạy và ô lệnh; không bao giờ lấy những gì gõ ở dấu nhắc mật khẩu",
   "collect.noHistory": "Không thấy file lịch sử shell nào của người dùng này.",
-  "collect.privacy": "Mọi dữ liệu thu thập chỉ nằm trên máy này.",
+  "collect.privacy": "Mọi dữ liệu thu thập chỉ nằm trên máy này. Dòng lệnh gốc (kể cả đường dẫn thư mục) không bao giờ được đưa vào gói lệnh chia sẻ; chỉ bản sao lưu đầy đủ mới có.",
   "collect.status.auto": "Đã tự gộp",
   "collect.cleared": "đã xoá nhật ký",
   "collect.mergeTitle": "Gộp lệnh & nhật ký",

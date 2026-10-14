@@ -17,7 +17,9 @@ Please report vulnerabilities privately through GitHub: **Security ▸ Report a 
 | Terminal output | Links printed by a remote session (OSC 8) open only if they are `http(s)`, only in the system browser, and only after you confirm. Output is never stored. |
 | The window | Only Cmdex's own page can reach its functions; dropping files or links on the window does not navigate it. No network port is opened. |
 | Help lookup | Never runs an unknown program: it reads `man`, PowerShell `Get-Help`, and `/?` only for console tools in Windows' System32, excluding a list of programs that act at once. |
-| Imported files | Backups and packs are validated; a `.db` file is read from a copy with `trusted_schema` off. Exported files are readable by their owner only. |
+| Imported files | Backups and packs are validated; a `.db` file is read from a copy with `trusted_schema` off. An imported command is always yours, never shown as a starter command: it cannot hide a starter command behind one of its own, and a copy of a starter command keeps that link only when it runs the same line, never asking less before running. Exported files are readable by their owner only. |
+| Clearing the collected log | Deleted lines are erased from the disk (the database file is rewritten, its journal emptied), in the database and in the copy made when upgrading to 0.1.3 (`cmdex.db.bak-v1`). That copy is readable by its owner only and gets the same secret masking as the database. |
+| Starter commands | Built at start from the packs inside the program into a separate, read-only database; checked like any command. What you change lives in your own database, which updates never rewrite. |
 | Updates | Downloaded from this repository's releases over HTTPS and installed only when the SHA-256 matches the published `SHA256SUMS.txt`. |
 | `tools/devserve` (development only) | Listens on loopback only; every call needs a per-run token, the exact `Host`, and a JSON body (no cross-site requests, no DNS rebinding). |
 

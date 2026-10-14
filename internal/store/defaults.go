@@ -429,6 +429,7 @@ func (s *Store) defaultRule(id int64) (Rule, bool) {
 // then lock the user's database without holding the defaults.
 type defaultIndex struct {
 	commands map[string]int64 // CommandKey -> library ID (negative)
+	danger   map[string]int   // CommandKey -> safety level
 	explain  map[string]bool
 	rules    map[string]bool // RuleKey
 	synonyms map[string][]string
@@ -438,16 +439,18 @@ type defaultIndex struct {
 func (s *Store) defaultIndex() (defaultIndex, bool) {
 	s.baseMu.RLock()
 	defer s.baseMu.RUnlock()
-	idx := defaultIndex{commands: map[string]int64{}, explain: map[string]bool{}, rules: map[string]bool{}, synonyms: map[string][]string{}, packs: s.packs}
+	idx := defaultIndex{commands: map[string]int64{}, danger: map[string]int{}, explain: map[string]bool{}, rules: map[string]bool{}, synonyms: map[string][]string{}, packs: s.packs}
 	if s.base == nil {
 		return idx, false
 	}
-	if rows, err := s.base.Query("SELECT id, platform, template FROM commands"); err == nil {
+	if rows, err := s.base.Query("SELECT id, platform, template, danger FROM commands"); err == nil {
 		for rows.Next() {
 			var id int64
 			var p, t string
-			rows.Scan(&id, &p, &t)
+			var d int
+			rows.Scan(&id, &p, &t, &d)
 			idx.commands[CommandKey(p, t)] = -id
+			idx.danger[CommandKey(p, t)] = d
 		}
 		rows.Close()
 	}
@@ -487,23 +490,29 @@ func (s *Store) RestoreDefaults() (int, error) {
 // adopt fits the user's database to the defaults. Cmdex 0.1 copied the
 // starter packs into it; a copy the user never edited is dropped (the
 // default shows instead, with the copy's run count), an edited one becomes
-// the user's copy of that default. Old copies of default explanations,
-// rules and synonyms are dropped too, so later updates reach the user;
-// what the user changed stays. It runs at every start, which keeps the
-// database right after going back to an older Cmdex and forward again.
+// the user's copy of that default. Old copies of default explanations are
+// dropped too, and, while upgrading only, old copies of default rules and
+// synonyms, so later updates reach the user; what the user changed stays.
+// It runs at every start, which keeps the database right after going back
+// to an older Cmdex and forward again, and changes nothing otherwise.
 // The first time, the database is first copied to cmdex.db.bak-v1.
 func (s *Store) adopt() error {
 	idx, ok := s.defaultIndex()
 	if !ok {
 		return nil
 	}
-	if s.Setting("packs.imported", "") != "" {
-		bak := s.path + ".bak-v1"
+	// a library of Cmdex 0.1 (starter packs copied in), not yet fitted
+	upgrading := s.Setting("packs.imported", "") != ""
+	if upgrading {
+		bak := s.BackupPath()
 		if _, err := os.Stat(bak); errors.Is(err, os.ErrNotExist) {
 			s.mu.Lock()
 			_, err := s.db.Exec("VACUUM INTO ?", bak)
 			s.mu.Unlock()
 			if err != nil {
+				return fmt.Errorf("backup before update: %w", err)
+			}
+			if err := os.Chmod(bak, 0o600); err != nil { // like the database: its owner only
 				return fmt.Errorf("backup before update: %w", err)
 			}
 		}
@@ -554,7 +563,12 @@ func (s *Store) adopt() error {
 	for _, r := range rows {
 		target := CommandKey(r.platform, r.template)
 		if idx.commands[target] == 0 {
-			// the template changed since: the same command by its name
+			// the template changed since: the same command by its name, but
+			// only for a library being upgraded, never for imported commands
+			// (a file must not hide a starter command behind one of its own)
+			if !upgrading {
+				continue
+			}
 			target = byName[r.platform+" "+r.name]
 			if idx.commands[target] == 0 {
 				continue // not a default any more: it stays the user's
@@ -596,54 +610,60 @@ func (s *Store) adopt() error {
 		}
 	}
 
-	var rules []Rule
-	q, err = tx.Query("SELECT id, kind, match, result FROM rules")
-	if err != nil {
-		return err
-	}
-	for q.Next() {
-		var r Rule
-		q.Scan(&r.ID, &r.Kind, &r.Match, &r.Result)
-		rules = append(rules, r)
-	}
-	q.Close()
-	for _, r := range rules {
-		retired := false
-		for _, x := range retiredRules {
-			retired = retired || (x.Kind == r.Kind && x.Match == r.Match)
+	// Rules and synonyms are fitted only when upgrading: after that, those in
+	// the user's database are the user's own, even when they look like a
+	// default (a rule for the same programs, a shorter list of synonyms).
+	if upgrading {
+		var rules []Rule
+		q, err = tx.Query("SELECT id, kind, match, result FROM rules")
+		if err != nil {
+			return err
 		}
-		isDefault := idx.rules[RuleKey(r.Kind, r.Match)]
-		words := ruleWords[RuleKey(r.Kind, r.Match)]
-		switch {
-		case retired, isDefault && (contains(words, r.Result) || (r.Result == "" && len(words) == 0)):
-			if _, err := tx.Exec("DELETE FROM rules WHERE id = ?", r.ID); err != nil {
-				return err
+		for q.Next() {
+			var r Rule
+			q.Scan(&r.ID, &r.Kind, &r.Match, &r.Result)
+			rules = append(rules, r)
+		}
+		q.Close()
+		for _, r := range rules {
+			retired := false
+			for _, x := range retiredRules {
+				retired = retired || (x.Kind == r.Kind && x.Match == r.Match)
 			}
-		case isDefault: // the user renamed the group: their rule replaces the default
-			if _, err := tx.Exec(`INSERT INTO base_state(kind, key, hidden) VALUES('rule', ?, 1)
+			isDefault := idx.rules[RuleKey(r.Kind, r.Match)]
+			words := ruleWords[RuleKey(r.Kind, r.Match)]
+			switch {
+			case retired, isDefault && (contains(words, r.Result) || (r.Result == "" && len(words) == 0)):
+				if _, err := tx.Exec("DELETE FROM rules WHERE id = ?", r.ID); err != nil {
+					return err
+				}
+			case isDefault: // the user renamed the group: their rule replaces the default
+				if _, err := tx.Exec(`INSERT INTO base_state(kind, key, hidden) VALUES('rule', ?, 1)
 				ON CONFLICT(kind, key) DO UPDATE SET hidden = 1`, RuleKey(r.Kind, r.Match)); err != nil {
-				return err
+					return err
+				}
 			}
 		}
-	}
 
-	mine := map[string][]string{}
-	q, err = tx.Query("SELECT word, alts FROM synonyms")
-	if err != nil {
-		return err
-	}
-	for q.Next() {
-		var w, alts string
-		q.Scan(&w, &alts)
-		mine[w] = splitList(alts)
-	}
-	q.Close()
-	for w, alts := range mine {
-		if base, ok := idx.synonyms[w]; ok && len(alts) > 0 && subset(alts, base) {
-			if _, err := tx.Exec("DELETE FROM synonyms WHERE word = ?", w); err != nil {
-				return err
+		mine := map[string][]string{}
+		q, err = tx.Query("SELECT word, alts FROM synonyms")
+		if err != nil {
+			return err
+		}
+		for q.Next() {
+			var w, alts string
+			q.Scan(&w, &alts)
+			mine[w] = splitList(alts)
+		}
+		q.Close()
+		for w, alts := range mine {
+			if base, ok := idx.synonyms[w]; ok && len(alts) > 0 && subset(alts, base) {
+				if _, err := tx.Exec("DELETE FROM synonyms WHERE word = ?", w); err != nil {
+					return err
+				}
 			}
 		}
+
 	}
 
 	// Cmdex 0.1 imports the starter packs again when this is missing, which
