@@ -43,6 +43,7 @@ func main() {
 		AssetServer:      &assetserver.Options{Assets: assets},
 		OnStartup:        func(ctx context.Context) { app.Startup(a, ctx) },
 		OnShutdown:       func(ctx context.Context) { app.Shutdown(a, ctx) },
+		OnDomReady:       func(ctx context.Context) { app.DomReady(a, ctx) },
 		Bind:             []any{a},
 		SingleInstanceLock: &options.SingleInstanceLock{
 			UniqueId: "cmdex-2c6f1d0e-6b0a-4c55-9f0e-3a4f2a7d9b11",

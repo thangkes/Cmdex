@@ -152,13 +152,10 @@ async function openProfile(p, password, remember) {
   if (res.session) { registerSession(res.session, t0); return; }
   t0.term.dispose(); t0.pane.remove();
   if (res.need === "password") {
-    const pw = h("input", { type: "password", autocomplete: "off" });
-    const rem = h("input", { type: "checkbox" });
-    const v = await dialog(t("conn.passTitle", { name: p.name }), [
-      h("label", { class: "field" }, p.auth === "key" ? t("conn.passphrase") : t("conn.password"), pw),
-      h("label", { class: "check" }, rem, t("conn.remember")),
-    ], [{ label: t("common.cancel"), value: null }, { label: t("conn.connect"), pri: true, value: () => pw.value }]);
-    if (v) openProfile(p, v, rem.checked);
+    const v = await secureInput(t("conn.passTitle", { name: p.name }), p.auth === "key" ? t("conn.passphrase") : t("conn.password"));
+    if (v === null) return;
+    const remember = await confirmDialog(t("conn.rememberTitle"), t("conn.rememberQ"), t("conn.remember"));
+    openProfile(p, v, remember);
   } else if (res.need === "trust") {
     const ok = await dialog(t("conn.trustTitle"), [
       h("p", { class: "soft" }, t("conn.trustText", { host: p.host })),
@@ -182,6 +179,22 @@ function renderTabs() {
       h("button", { type: "button", "aria-label": t("term.close"), title: t("term.close"), onclick: () => closeSession(id) }, "×")));
   }
   tabs.appendChild(h("div", { class: "tab" }, h("button", { type: "button", class: "add", title: t("term.newLocal"), "aria-label": t("term.newLocal"), onclick: openLocal }, "+")));
+  const cur = Work.sessions.get(Work.active);
+  if (cur && !cur.closed) {
+    tabs.appendChild(h("span", { class: "tabspacer" }));
+    tabs.appendChild(h("button", { type: "button", class: "btn small secretsend", title: t("term.secretHint"), onclick: sendSecret }, t("term.secret")));
+  }
+}
+
+// sendSecret types a password into the session from the secure keypad (for
+// sudo, su, Password: prompts...). It is not collected and not kept.
+async function sendSecret() {
+  const s = Work.sessions.get(Work.active);
+  if (!s || s.closed) return;
+  const v = await secureInput(t("term.secretTitle", { s: s.info.name }), t("term.secretHint"));
+  if (v === null) return;
+  s.send(v + "\r");
+  s.term.focus();
 }
 
 function activePlatform() {
@@ -246,7 +259,13 @@ async function showConnForm(p) {
     form.appendChild(kindSeg);
     const name = h("input", { type: "text", value: c.name, placeholder: t("conn.namePh") });
     name.oninput = () => { c.name = name.value; };
-    const pass = h("input", { type: "password", autocomplete: "off", placeholder: p ? t("conn.passKeep") : "" });
+    // the secret is entered on the secure keypad, never typed
+    let secret = "";
+    const pass = h("button", { type: "button", class: "btn secretbtn" }, p ? t("conn.passKeep") : t("kp.enter"));
+    pass.onclick = async () => {
+      const v = await secureInput(t("kp.title"), c.auth === "key" ? t("conn.passphrase") : t("conn.password"));
+      if (v !== null) { secret = v; pass.textContent = v ? "•".repeat(Math.min(v.length, 12)) : t("kp.enter"); }
+    };
     if (c.kind === "serial") {
       const port = h("select", {}, (ports.length ? ports : [c.serial.port || "COM1"]).map(x => h("option", { value: x, selected: x === c.serial.port }, x)));
       if (!c.serial.port) c.serial.port = port.value;
@@ -301,7 +320,8 @@ async function showConnForm(p) {
     async function save(andOpen) {
       if (c.kind !== "serial" && !c.host) { setStatus(t("conn.needHost"), true); return; }
       try {
-        const id = await api.SaveConnection(c, pass.value || "");
+        const id = await api.SaveConnection(c, secret);
+        secret = "";
         form.hidden = true; Work.editing = null;
         await loadProfiles();
         if (andOpen) { const np = Work.profiles.find(x => x.id === id); if (np) openProfile(np); }

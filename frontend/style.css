@@ -32,6 +32,24 @@ a { color: var(--accent); }
 .seg button { border: 0; background: transparent; padding: 6px 12px; min-height: 34px; cursor: pointer; color: var(--soft-2); font-weight: 600; font-size: 13px; }
 .seg button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
 
+.protect { border: 1px solid var(--line-2); background: transparent; color: var(--muted); border-radius: 8px; width: 36px; height: 34px; display: grid; place-items: center; cursor: pointer; }
+.protect.on { color: var(--ok-text); border-color: var(--ok-line); background: var(--ok-bg); }
+.protect:disabled { opacity: 0.4; cursor: default; }
+
+/* secure keypad */
+.kp-value { min-height: 44px; display: flex; align-items: center; padding: 0 12px; background: var(--bg); border: 1px solid var(--line-2); border-radius: 8px; font-size: 18px; letter-spacing: 2px; word-break: break-all; }
+.kp-value.empty { color: var(--faint); font-size: 13px; letter-spacing: 0; }
+.kp-keys { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 6px; }
+.kp-key { min-height: 40px; border: 1px solid var(--line-2); background: var(--panel-2); color: var(--text); border-radius: 8px; font-size: 15px; cursor: pointer; }
+.kp-key:hover { border-color: var(--accent); }
+.kp-ctrls { display: flex; flex-wrap: wrap; gap: 6px; }
+.kp-ctrl { min-height: 36px; padding: 0 12px; border: 1px solid var(--line-2); background: var(--bg); color: var(--soft-2); border-radius: 8px; cursor: pointer; font-size: 13px; }
+.kp-ctrl[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+.note.flash { color: var(--bad-text); }
+.tabspacer { flex: 1 1 auto; }
+.secretsend { margin: 0 4px 4px; }
+.secretbtn { text-align: left; }
+
 /* layout */
 .view { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 14px 16px; }
 .view.work { display: flex; gap: 14px; overflow: hidden; }

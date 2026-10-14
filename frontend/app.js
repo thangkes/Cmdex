@@ -31,6 +31,7 @@ async function setLang(lang) {
   document.getElementById("q").placeholder = t("ask.placeholder");
   document.getElementById("dbPath").textContent = t("status.db", { p: App.info.dbPath });
   setTheme(App.theme); // theme names are translated
+  refreshProtection();
   relabelWork();
   if (App.view === "collect") renderCollect();
   if (App.view === "library") renderLibrary();
@@ -67,6 +68,7 @@ async function start() {
     await dialog(t("db.errorTitle"), h("p", { class: "soft" }, t("db.errorText", { err: App.info.dbError, p: App.info.dbPath })), [{ label: t("common.ok"), pri: true, value: true }]);
   }
   initWork();
+  initProtection();
   await setLang(App.lang);
   showView("work");
   refreshCollectBadge();
