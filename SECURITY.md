@@ -28,4 +28,4 @@ Please report vulnerabilities privately through GitHub: **Security ▸ Report a 
 - Telnet is unencrypted by design; use it only on trusted networks.
 - Release files are not code-signed yet, so their integrity rests on this GitHub repository.
 - The library database is not encrypted at rest; it holds host names, user names and masked command history, protected by your user account's file permissions.
-- A command you add or import runs at once unless you set its safety to "ask before running" or "copy only".
+- **Correction (2026-10-14):** in 0.1.5 and earlier, ▶ Run pastes a command and presses Enter at once, whatever its safety level: "ask before running" and "copy only" are stored but **not enforced** (earlier versions of this file and of the 0.1.4/0.1.5 release notes said otherwise). Check a command before you run it, above all one you imported or collected. The next version makes ▶ Run paste only (you press Enter yourself) and marks destructive commands as CRITICAL.

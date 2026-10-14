@@ -29,7 +29,7 @@ Collected command lines are stored with secrets already masked (`•••••
     "template": "ping {host} -n {count}",   // {parameters} in curly braces
     "purpose": "Checks a host answers",
     "notes": "",
-    "danger": 0,                     // 0 run at once, 1 ask first, 2 copy only
+    "danger": 0,                     // safety level 0-2 (stored; not enforced in 0.1.5 and earlier)
     "tags": ["ping"],
     "envs": ["Lab"],
     "params": [{"key": "host", "type": "host", "default": "8.8.8.8", "description": "Host", "required": true}],
