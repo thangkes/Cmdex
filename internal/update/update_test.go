@@ -2,12 +2,8 @@ package update
 
 import (
 	"context"
-	"crypto/ed25519"
-	"crypto/rand"
 	"crypto/sha256"
-	"encoding/base64"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -55,22 +51,9 @@ func (r rewrite) RoundTrip(req *http.Request) (*http.Response, error) {
 	return http.DefaultTransport.RoundTrip(req2)
 }
 
-// testKey makes a signing key, trusted (instead of the real keys) for the
-// test, and returns the base64 signature of b by it.
-func testKey(t *testing.T) func(b []byte) string {
-	pub, priv, _ := ed25519.GenerateKey(rand.Reader)
-	old := TrustedKeys
-	TrustedKeys = []string{base64.StdEncoding.EncodeToString(pub)}
-	t.Cleanup(func() { TrustedKeys = old })
-	return func(b []byte) string { return base64.StdEncoding.EncodeToString(ed25519.Sign(priv, b)) }
-}
-
 func TestCheckAndDownload(t *testing.T) {
-	sign := testKey(t)
 	payload := []byte("new setup bytes")
 	sum := sha256.Sum256(payload)
-	sums := fmt.Sprintf("%s  Cmdex-Windows-Setup-0.2.0.exe\n%s  Cmdex-Linux-amd64-0.2.0.tar.gz\n", hex.EncodeToString(sum[:]), strings.Repeat("0", 64))
-	sig := sign([]byte(sums))
 	var srvURL string
 	mux := http.NewServeMux()
 	mux.HandleFunc("/repos/"+Repo+"/releases", func(w http.ResponseWriter, r *http.Request) {
@@ -79,14 +62,14 @@ func TestCheckAndDownload(t *testing.T) {
  {"tag_name":"v0.2.0","html_url":"page","body":"notes","assets":[
    {"name":"Cmdex-Windows-Setup-0.2.0.exe","browser_download_url":"%[1]s/setup","size":15},
    {"name":"Cmdex-Linux-amd64-0.2.0.tar.gz","browser_download_url":"%[1]s/tgz","size":1},
-   {"name":"SHA256SUMS.txt","browser_download_url":"%[1]s/sums","size":1},
-   {"name":"SHA256SUMS.txt.sig","browser_download_url":"%[1]s/sig","size":1}]},
+   {"name":"SHA256SUMS.txt","browser_download_url":"%[1]s/sums","size":1}]},
  {"tag_name":"v0.1.5","assets":[{"name":"Cmdex-Windows-Setup-0.1.5.exe","browser_download_url":"x"}]}
 ]`, srvURL)
 	})
 	mux.HandleFunc("/setup", func(w http.ResponseWriter, r *http.Request) { w.Write(payload) })
-	mux.HandleFunc("/sums", func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, sums) })
-	mux.HandleFunc("/sig", func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, sig) })
+	mux.HandleFunc("/sums", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "%s  Cmdex-Windows-Setup-0.2.0.exe\n%s  Cmdex-Linux-amd64-0.2.0.tar.gz\n", hex.EncodeToString(sum[:]), strings.Repeat("0", 64))
+	})
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 	srvURL = srv.URL
@@ -125,34 +108,6 @@ func TestCheckAndDownload(t *testing.T) {
 	if _, err := os.Stat(bad); !os.IsNotExist(err) {
 		t.Fatal("bad download left on disk")
 	}
-
-	// checksums changed after signing (or signed by another key): refused
-	sums += "0000000000000000000000000000000000000000000000000000000000000000  extra\n"
-	if err := Download(ctx, hc, r, filepath.Join(t.TempDir(), "s.exe")); !errors.Is(err, ErrUnsigned) {
-		t.Fatalf("unsigned checksums accepted: %v", err)
-	}
-	sums = strings.SplitAfterN(sums, "extra\n", 2)[0]
-	TrustedKeys = []string{base64.StdEncoding.EncodeToString(make([]byte, 32))}
-	if err := Download(ctx, hc, r, filepath.Join(t.TempDir(), "s.exe")); !errors.Is(err, ErrUnsigned) {
-		t.Fatalf("signature by an unknown key accepted: %v", err)
-	}
-}
-
-// A release without a signature is not offered at all.
-func TestUnsignedReleaseNotOffered(t *testing.T) {
-	testKey(t)
-	var srvURL string
-	mux := http.NewServeMux()
-	mux.HandleFunc("/repos/"+Repo+"/releases", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, `[{"tag_name":"v0.9.0","assets":[
-   {"name":"App-0.9.0.exe","browser_download_url":"%[1]s/f"},{"name":"SHA256SUMS.txt","browser_download_url":"%[1]s/s"}]}]`, srvURL)
-	})
-	srv := httptest.NewServer(mux)
-	defer srv.Close()
-	srvURL = srv.URL
-	if r, _ := Check(context.Background(), &http.Client{Transport: rewrite{srv.URL}}, "0.1.0", func(string) bool { return true }); r != nil {
-		t.Fatalf("unsigned release offered: %+v", r)
-	}
 }
 
 // Stable builds are not offered betas; beta builds get newer betas and the
@@ -163,9 +118,9 @@ func TestCheckBetas(t *testing.T) {
 	mux.HandleFunc("/repos/"+Repo+"/releases", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, `[
  {"tag_name":"v0.3.0-beta.1","prerelease":true,"assets":[
-   {"name":"App-0.3.0-beta.1.exe","browser_download_url":"%[1]s/b"},{"name":"SHA256SUMS.txt","browser_download_url":"%[1]s/s"},{"name":"SHA256SUMS.txt.sig","browser_download_url":"%[1]s/g"}]},
+   {"name":"App-0.3.0-beta.1.exe","browser_download_url":"%[1]s/b"},{"name":"SHA256SUMS.txt","browser_download_url":"%[1]s/s"}]},
  {"tag_name":"v0.2.0","assets":[
-   {"name":"App-0.2.0.exe","browser_download_url":"%[1]s/f"},{"name":"SHA256SUMS.txt","browser_download_url":"%[1]s/s"},{"name":"SHA256SUMS.txt.sig","browser_download_url":"%[1]s/g"}]}
+   {"name":"App-0.2.0.exe","browser_download_url":"%[1]s/f"},{"name":"SHA256SUMS.txt","browser_download_url":"%[1]s/s"}]}
 ]`, srvURL)
 	})
 	srv := httptest.NewServer(mux)

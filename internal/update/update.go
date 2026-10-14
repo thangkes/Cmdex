@@ -1,16 +1,11 @@
 // Package update finds newer Cmdex releases on GitHub and downloads their
 // files, checked against the SHA256SUMS.txt published with each release.
-// That file must carry a signature (SHA256SUMS.txt.sig) by one of the
-// TrustedKeys: the GitHub account alone cannot publish an update.
 package update
 
 import (
 	"bufio"
-	"bytes"
 	"context"
-	"crypto/ed25519"
 	"crypto/sha256"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -30,23 +25,7 @@ const Repo = "thangkes/Cmdex"
 // time can point updates elsewhere.
 var APIBase = "https://api.github.com"
 
-const (
-	sumsName = "SHA256SUMS.txt"
-	sigName  = sumsName + ".sig" // Ed25519 signature of sumsName, base64
-)
-
-// TrustedKeys are the Ed25519 public keys (base64) whose signature on a
-// release's SHA256SUMS.txt is accepted: the release key, kept on the
-// maintainer's computer, and a backup key kept offline. tools/sign makes
-// and uses them.
-var TrustedKeys = []string{
-	releaseKey,
-	backupKey,
-}
-
-// ErrUnsigned is returned for a release whose checksums are not signed by
-// one of the TrustedKeys.
-var ErrUnsigned = errors.New("the release's checksums are not signed with Cmdex's key: not installed")
+const sumsName = "SHA256SUMS.txt"
 
 // Release is a newer version with the one file this app needs.
 type Release struct {
@@ -57,7 +36,6 @@ type Release struct {
 	AssetURL  string `json:"assetURL"`
 	Size      int64  `json:"size"`
 	SumsURL   string `json:"sumsURL"`
-	SigURL    string `json:"sigURL"`
 }
 
 type ghRelease struct {
@@ -112,14 +90,12 @@ func Check(ctx context.Context, hc *http.Client, current string, match func(name
 			switch {
 			case a.Name == sumsName:
 				rel.SumsURL = a.URL
-			case a.Name == sigName:
-				rel.SigURL = a.URL
 			case rel.AssetURL == "" && match(a.Name):
 				rel.AssetName, rel.AssetURL, rel.Size = a.Name, a.URL, a.Size
 			}
 		}
-		if rel.AssetURL == "" || rel.SumsURL == "" || rel.SigURL == "" {
-			continue // without signed checksums we do not install anything
+		if rel.AssetURL == "" || rel.SumsURL == "" {
+			continue // without checksums we do not install anything
 		}
 		rel.Version = v.String()
 		rel.Notes, rel.PageURL = r.Body, r.HTMLURL
@@ -165,48 +141,17 @@ func Download(ctx context.Context, hc *http.Client, r *Release, dest string) err
 	return os.Rename(tmp, dest)
 }
 
-func fetch(ctx context.Context, hc *http.Client, url, what string) ([]byte, error) {
-	req, _ := http.NewRequestWithContext(ctx, "GET", url, nil)
+func expectedSum(ctx context.Context, hc *http.Client, r *Release) (string, error) {
+	req, _ := http.NewRequestWithContext(ctx, "GET", r.SumsURL, nil)
 	res, err := hc.Do(req)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("%s: %s", what, res.Status)
+		return "", fmt.Errorf("checksums: %s", res.Status)
 	}
-	return io.ReadAll(io.LimitReader(res.Body, 64<<10))
-}
-
-// Verify reports whether sig (base64, as in SHA256SUMS.txt.sig) is a
-// signature of sums by one of the TrustedKeys.
-func Verify(sums, sig []byte) bool {
-	s, err := base64.StdEncoding.DecodeString(strings.TrimSpace(string(sig)))
-	if err != nil || len(s) != ed25519.SignatureSize {
-		return false
-	}
-	for _, k := range TrustedKeys {
-		pub, err := base64.StdEncoding.DecodeString(k)
-		if err == nil && len(pub) == ed25519.PublicKeySize && ed25519.Verify(pub, sums, s) {
-			return true
-		}
-	}
-	return false
-}
-
-func expectedSum(ctx context.Context, hc *http.Client, r *Release) (string, error) {
-	sums, err := fetch(ctx, hc, r.SumsURL, "checksums")
-	if err != nil {
-		return "", err
-	}
-	sig, err := fetch(ctx, hc, r.SigURL, "signature")
-	if err != nil {
-		return "", err
-	}
-	if !Verify(sums, sig) {
-		return "", ErrUnsigned
-	}
-	sc := bufio.NewScanner(bytes.NewReader(sums))
+	sc := bufio.NewScanner(io.LimitReader(res.Body, 64<<10))
 	for sc.Scan() {
 		// "<hex>  <name>" (sha256sum format; "*" marks binary mode)
 		f := strings.Fields(sc.Text())

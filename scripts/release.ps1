@@ -3,7 +3,6 @@
 #   -> tag v<v> -> push -> GitHub Release.
 # The Linux build is made by GitHub Actions when the release is published
 # (.github/workflows/release-linux.yml); it adds its archive and checksum.
-# Then sign-release.ps1 checks both files and signs SHA256SUMS.txt.
 #
 #   .\scripts\release.ps1 0.1.0 -NotesFile dist\notes-0.1.0.md
 #   .\scripts\release.ps1 0.2.0-beta.1 -NotesFile notes.md   # "-" = pre-release
@@ -63,8 +62,7 @@ try {
     $ghArgs += (Get-ChildItem $out -File).FullName
     & $gh @ghArgs
     if ($LASTEXITCODE) { throw "gh release create failed" }
-    Write-Host "Released $tag - waiting for the Linux archive to sign the checksums." -ForegroundColor Green
-    & "$PSScriptRoot\sign-release.ps1" -Version $Version
+    Write-Host "Released $tag - the Linux archive is added by GitHub Actions in a few minutes." -ForegroundColor Green
 } finally {
     Pop-Location
 }
