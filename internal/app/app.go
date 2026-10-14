@@ -41,6 +41,9 @@ type App struct {
 	pending  map[int64]*pendingHost // unknown SSH host keys waiting for the user
 	release  *update.Release
 	updating bool
+
+	locked    string // lockOpen, or what the database waits for (dbkey.go)
+	readyOnce sync.Once
 }
 
 // New makes the application.
@@ -68,17 +71,29 @@ func (a *App) startup(ctx context.Context) {
 		a.dbErr = err.Error()
 		return
 	}
-	a.coll = &collect.Collector{Store: a.store}
-	// secrets missed by an older Cmdex are masked once, before anything
-	// (the backup copy made on upgrade) is copied
-	a.coll.Rescrub()
-	if err := a.store.UseDefaults(packs.All(), a.lang()); err != nil {
-		a.dbErr = err.Error() // the user's own library still works
-	}
-	a.coll.ScrubBackup() // a copy made by Cmdex 0.1.3 before that
-	go a.collectLoop()
-	go a.updateLoop()
 	go cleanDownloads()
+	// the database key first: nothing is read before it opens the database
+	// (and encrypts it, the first time)
+	a.locked = a.openKey()
+	if a.locked == lockOpen {
+		a.ready()
+	}
+}
+
+// ready starts Cmdex once the database is open.
+func (a *App) ready() {
+	a.readyOnce.Do(func() {
+		a.coll = &collect.Collector{Store: a.store}
+		// secrets missed by an older Cmdex are masked once, before anything
+		// (the backup copy made on upgrade) is copied
+		a.coll.Rescrub()
+		if err := a.store.UseDefaults(packs.All(), a.lang()); err != nil {
+			a.dbErr = err.Error() // the user's own library still works
+		}
+		a.coll.ScrubBackup() // a copy made by Cmdex 0.1.3 before that
+		go a.collectLoop()
+		go a.updateLoop()
+	})
 }
 
 func (a *App) shutdown(context.Context) {
@@ -104,6 +119,7 @@ type Info struct {
 	Defaults string   `json:"defaults"` // the defaults database
 	Filter   []string `json:"filter"`   // systems shown (empty: all)
 	DBError  string   `json:"dbError"`
+	Locked   string   `json:"locked"` // "", "create", "password" or "lost"
 	Shell    string   `json:"shell"`
 	Hostname string   `json:"hostname"`
 }
@@ -111,7 +127,7 @@ type Info struct {
 // Init returns the start-up information.
 func (a *App) Init() Info {
 	host, _ := os.Hostname()
-	info := Info{Version: Version, OS: runtime.GOOS, DBError: a.dbErr, Hostname: host}
+	info := Info{Version: Version, OS: runtime.GOOS, DBError: a.dbErr, Hostname: host, Locked: a.locked}
 	info.DBPath, _ = store.DefaultPath()
 	if a.store == nil {
 		info.Lang, info.Theme = systemLang(), "graphite"

@@ -1,6 +1,7 @@
 package store
 
 import (
+	"database/sql"
 	"errors"
 	"path/filepath"
 	"testing"
@@ -190,19 +191,20 @@ func TestClearCollected(t *testing.T) {
 // every value and read as "guess" (Linux over SSH).
 func TestConnectionDeviceType(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "c.db")
-	s, err := Open(path)
+	// as a database of 0.1.4 had it: schema version 3, without the column
+	db, err := sql.Open("sqlite", "file:"+filepath.ToSlash(path))
 	if err != nil {
 		t.Fatal(err)
 	}
-	// as a database of 0.1.4 had it: without the column
-	for _, q := range []string{"ALTER TABLE connections DROP COLUMN platform", "PRAGMA user_version = 3",
-		`INSERT INTO connections(kind, name, host, port, user, auth, key_path, serial, created) VALUES('ssh', 'web', '10.0.0.1', 22, 'root', 'key', '~/.ssh/k', '{}', 5)`} {
-		if _, err := s.db.Exec(q); err != nil {
-			t.Fatalf("%s: %v", q, err)
-		}
+	old := &Store{db: db}
+	if err := old.migrateTo(3); err != nil {
+		t.Fatal(err)
 	}
-	s.Close()
-	s, err = Open(path)
+	if _, err := db.Exec(`INSERT INTO connections(kind, name, host, port, user, auth, key_path, serial, created) VALUES('ssh', 'web', '10.0.0.1', 22, 'root', 'key', '~/.ssh/k', '{}', 5)`); err != nil {
+		t.Fatal(err)
+	}
+	db.Close()
+	s, err := Open(path)
 	if err != nil {
 		t.Fatal(err)
 	}

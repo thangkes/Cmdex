@@ -57,6 +57,46 @@ function offerUpdate(r) {
   };
 }
 
+// unlockFlow asks what the locked database needs: a new master password
+// (no keychain), the master password, or what to do with a lost key.
+async function unlockFlow(state) {
+  for (;;) {
+    if (state === "lost") {
+      const v = await dialog(t("lock.lostTitle"), h("p", { class: "soft" }, t("lock.lostText", { p: App.info.dbPath })),
+        [{ label: t("lock.retry"), value: "retry" }, { label: t("lock.fresh"), danger: true, value: "fresh" }]);
+      if (v !== "fresh") return;
+      if (await confirmDialog(t("lock.fresh"), t("lock.freshQ"), t("lock.fresh"), true)) {
+        await api.StartNewLibrary().catch(e => setStatus(errText(e), true));
+        return;
+      }
+      continue;
+    }
+    if (state === "create") {
+      await dialog(t("lock.createTitle"), h("p", { class: "soft" }, t("lock.createText")), [{ label: t("common.ok"), pri: true, value: true }]);
+      const a = await secureInput(t("lock.createTitle"), t("lock.newPassword"));
+      if (a === null) continue;
+      const b = await secureInput(t("lock.createTitle"), t("lock.again"));
+      if (b === null) continue;
+      if (a !== b) { await dialog(t("lock.createTitle"), h("p", { class: "soft" }, t("lock.differ")), [{ label: t("common.ok"), pri: true, value: true }]); continue; }
+      try { await api.UnlockDatabase(a); return; }
+      catch (e) { await dialog(t("lock.createTitle"), h("p", { class: "soft" }, errText(e)), [{ label: t("common.ok"), pri: true, value: true }]); continue; }
+    }
+    // the master password
+    const pw = await secureInput(t("lock.title"), t("lock.password"));
+    if (pw === null) {
+      const v = await dialog(t("lock.title"), h("p", { class: "soft" }, t("lock.forgot")),
+        [{ label: t("lock.retry"), pri: true, value: "retry" }, { label: t("lock.fresh"), danger: true, value: "fresh" }]);
+      if (v === "fresh" && await confirmDialog(t("lock.fresh"), t("lock.freshQ"), t("lock.fresh"), true)) {
+        await api.StartNewLibrary().catch(e => setStatus(errText(e), true));
+        return;
+      }
+      continue;
+    }
+    try { await api.UnlockDatabase(pw); return; }
+    catch (e) { await dialog(t("lock.title"), h("p", { class: "soft" }, errText(e)), [{ label: t("common.ok"), pri: true, value: true }]); }
+  }
+}
+
 async function start() {
   App.info = await api.Init();
   App.theme = App.info.theme || "graphite";
@@ -66,6 +106,11 @@ async function start() {
   document.getElementById("env").textContent = `${App.info.hostname} · ${App.info.os === "windows" ? "Windows" : "Linux"}`;
   document.querySelectorAll(".nav button").forEach(b => b.addEventListener("click", () => showView(b.dataset.view)));
   document.querySelectorAll("#langSeg button").forEach(b => b.addEventListener("click", async () => { await api.SetSetting("lang", b.dataset.lang).catch(e => setStatus(errText(e), true)); App.info = await api.Init().catch(() => App.info); setLang(b.dataset.lang); }));
+  if (App.info.locked) { // the database waits for its key: nothing else starts before
+    await unlockFlow(App.info.locked);
+    location.reload();
+    return;
+  }
   if (App.info.dbError) {
     await dialog(t("db.errorTitle"), h("p", { class: "soft" }, t("db.errorText", { err: App.info.dbError, p: App.info.dbPath })), [{ label: t("common.ok"), pri: true, value: true }]);
   }

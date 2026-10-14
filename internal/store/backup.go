@@ -89,7 +89,8 @@ type BackupResult struct {
 // portableSetting reports whether a setting belongs in a backup: not the
 // read positions in this computer's history files, nor help-lookup misses.
 func portableSetting(key string) bool {
-	return !strings.HasPrefix(key, "collect.offset.") && !strings.HasPrefix(key, "help.miss.")
+	return !strings.HasPrefix(key, "collect.offset.") && !strings.HasPrefix(key, "help.miss.") &&
+		!strings.HasPrefix(key, "crypto.") // this database's key: never in a backup, never replaced by one
 }
 
 // ExportBackup returns the user's database.
@@ -162,6 +163,10 @@ func (s *Store) ExportBackup(app string) (Backup, error) {
 			groups.Close()
 			return b, err
 		}
+		if g.bc.Signature, err = s.open("collected.signature", g.bc.Signature); err != nil {
+			groups.Close()
+			return b, err
+		}
 		gs = append(gs, g)
 	}
 	groups.Close()
@@ -169,7 +174,7 @@ func (s *Store) ExportBackup(app string) (Backup, error) {
 		if c, ok := byID[g.target]; ok {
 			g.bc.Target = &CommandRef{Platform: c.Platform, Template: c.Template}
 		}
-		vr, err := s.db.Query("SELECT raw, count FROM variants WHERE collected_id = ? ORDER BY count DESC", g.id)
+		vr, err := s.db.Query("SELECT raw, count FROM variants WHERE collected_id = ? ORDER BY count DESC, rowid", g.id)
 		if err != nil {
 			return b, err
 		}
@@ -177,6 +182,10 @@ func (s *Store) ExportBackup(app string) (Backup, error) {
 		for vr.Next() {
 			var v Variant
 			vr.Scan(&v.Raw, &v.Count)
+			if v.Raw, err = s.open("variants.raw", v.Raw); err != nil {
+				vr.Close()
+				return b, err
+			}
 			g.bc.Variants = append(g.bc.Variants, v)
 		}
 		vr.Close()
@@ -248,6 +257,10 @@ func (s *Store) importBackup(b Backup, replace bool) (BackupResult, error) {
 		return r, errors.New("not a Cmdex backup")
 	}
 	idx, _ := s.defaultIndex()
+	haveConns, err := s.Connections() // compared in clear: their columns are sealed
+	if err != nil {
+		return r, err
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	tx, err := s.db.Begin()
@@ -258,7 +271,7 @@ func (s *Store) importBackup(b Backup, replace bool) (BackupResult, error) {
 
 	if replace {
 		for _, q := range []string{"DELETE FROM variants", "DELETE FROM collected", "DELETE FROM commands", "DELETE FROM explain",
-			"DELETE FROM rules", "DELETE FROM synonyms", "DELETE FROM connections", "DELETE FROM base_state", "DELETE FROM settings WHERE key NOT LIKE 'collect.offset.%'"} {
+			"DELETE FROM rules", "DELETE FROM synonyms", "DELETE FROM connections", "DELETE FROM base_state", "DELETE FROM settings WHERE key NOT LIKE 'collect.offset.%' AND key NOT LIKE 'crypto.%'"} {
 			if _, err := tx.Exec(q); err != nil {
 				return r, err
 			}
@@ -291,7 +304,6 @@ func (s *Store) importBackup(b Backup, replace bool) (BackupResult, error) {
 		if c.Updated == 0 {
 			c.Updated = c.Created
 		}
-		params, _ := json.Marshal(nonNilParams(c.Params))
 		ref := CommandRef{c.Platform, c.Template}
 		key := CommandKey(c.Platform, c.Template)
 		if idx.commands[c.BaseKey] == 0 || c.BaseKey != key {
@@ -317,7 +329,8 @@ func (s *Store) importBackup(b Backup, replace bool) (BackupResult, error) {
 		}
 		var id, updated int64
 		var uses int
-		err := tx.QueryRow("SELECT id, updated, uses FROM commands WHERE platform = ? AND template = ?", c.Platform, c.Template).Scan(&id, &updated, &uses)
+		err := tx.QueryRow("SELECT id, updated, uses FROM commands WHERE platform = ? AND template_mac = ?", c.Platform, s.look("commands.template", c.Template)).Scan(&id, &updated, &uses)
+		sc := s.sealCommand(c)
 		switch {
 		case errors.Is(err, sql.ErrNoRows):
 			if c.BaseKey != "" {
@@ -327,9 +340,9 @@ func (s *Store) importBackup(b Backup, replace bool) (BackupResult, error) {
 					c.BaseKey = "" // this computer has its own copy of that default
 				}
 			}
-			res, err := tx.Exec(`INSERT INTO commands(name, platform, shell, category, template, purpose, notes, danger, tags, envs, params, uses, source, created, updated, base_key)
-				VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-				c.Name, c.Platform, c.Shell, c.Category, c.Template, c.Purpose, c.Notes, c.Danger, joinList(c.Tags), joinList(c.Envs), string(params), c.Uses, c.Source, c.Created, c.Updated, c.BaseKey)
+			res, err := tx.Exec(`INSERT INTO commands(name, platform, shell, category, template, purpose, notes, danger, tags, envs, params, uses, source, created, updated, base_key, template_mac)
+				VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				sc.name, c.Platform, c.Shell, c.Category, sc.template, sc.purpose, sc.notes, c.Danger, sc.tags, sc.envs, sc.params, c.Uses, c.Source, c.Created, c.Updated, c.BaseKey, sc.mac)
 			if err != nil {
 				return r, err
 			}
@@ -340,7 +353,7 @@ func (s *Store) importBackup(b Backup, replace bool) (BackupResult, error) {
 		case c.Updated > updated:
 			if _, err := tx.Exec(`UPDATE commands SET name = ?, shell = ?, category = ?, purpose = ?, notes = ?, danger = ?, tags = ?, envs = ?, params = ?,
 				uses = MAX(uses, ?), source = ?, created = ?, updated = ? WHERE id = ?`,
-				c.Name, c.Shell, c.Category, c.Purpose, c.Notes, c.Danger, joinList(c.Tags), joinList(c.Envs), string(params), c.Uses, c.Source, c.Created, c.Updated, id); err != nil {
+				sc.name, c.Shell, c.Category, sc.purpose, sc.notes, c.Danger, sc.tags, sc.envs, sc.params, c.Uses, c.Source, c.Created, c.Updated, id); err != nil {
 				return r, err
 			}
 			r.Updated++
@@ -415,22 +428,25 @@ func (s *Store) importBackup(b Backup, replace bool) (BackupResult, error) {
 		default:
 			continue
 		}
-		var n int
-		tx.QueryRow("SELECT COUNT(*) FROM connections WHERE kind = ? AND name = ? AND host = ? AND port = ?", c.Kind, c.Name, c.Host, c.Port).Scan(&n)
-		if n > 0 {
+		dup := false
+		for _, h := range haveConns {
+			dup = dup || (h.Kind == c.Kind && h.Name == c.Name && h.Host == c.Host && h.Port == c.Port)
+		}
+		if dup {
 			continue
 		}
-		serial, _ := json.Marshal(c.Serial)
 		if c.Created == 0 {
 			c.Created = now()
 		}
 		if !validDevice(c.Platform) {
 			c.Platform = ""
 		}
+		name, host, user, keyPath, serial := s.sealConnection(c)
 		if _, err := tx.Exec("INSERT INTO connections(kind, name, host, port, user, auth, key_path, serial, created, platform) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-			c.Kind, c.Name, c.Host, c.Port, c.User, c.Auth, c.KeyPath, string(serial), c.Created, c.Platform); err != nil {
+			c.Kind, name, host, c.Port, user, c.Auth, keyPath, serial, c.Created, c.Platform); err != nil {
 			return r, err
 		}
+		haveConns = append(haveConns, c)
 		r.Connections++
 	}
 
@@ -444,7 +460,7 @@ func (s *Store) importBackup(b Backup, replace bool) (BackupResult, error) {
 				target = id
 			} else {
 				var id int64
-				if tx.QueryRow("SELECT id FROM commands WHERE platform = ? AND template = ?", g.Target.Platform, g.Target.Template).Scan(&id) == nil {
+				if id, err = s.commandIDByTemplate(tx, g.Target.Platform, g.Target.Template); err == nil {
 					target = id
 				} else if id := idx.commands[CommandKey(g.Target.Platform, g.Target.Template)]; id != 0 {
 					target = id
@@ -456,22 +472,20 @@ func (s *Store) importBackup(b Backup, replace bool) (BackupResult, error) {
 		default:
 			g.Status = StatusPending
 		}
-		var gid int64
-		err := tx.QueryRow("SELECT id FROM collected WHERE signature = ?", g.Signature).Scan(&gid)
+		gid, err := s.groupID(tx, g.Signature)
 		if errors.Is(err, sql.ErrNoRows) {
-			res, err := tx.Exec("INSERT INTO collected(signature, category, source, status, target, auto, secret, first_seen, last_seen) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)",
-				g.Signature, g.Category, g.Source, g.Status, target, g.Auto && g.Status == StatusMerged, g.Secret, g.FirstSeen, g.LastSeen)
-			if err != nil {
+			if gid, err = s.insertGroup(tx, g.Signature, g.Category, g.Source, g.Secret, g.FirstSeen, g.LastSeen); err != nil {
 				return r, err
 			}
-			gid, _ = res.LastInsertId()
+			if _, err := tx.Exec("UPDATE collected SET status = ?, target = ?, auto = ? WHERE id = ?", g.Status, target, g.Auto && g.Status == StatusMerged, gid); err != nil {
+				return r, err
+			}
 			r.Collected++
 		} else if err != nil {
 			return r, err
 		}
 		for _, v := range g.Variants {
-			if _, err := tx.Exec("INSERT INTO variants(collected_id, raw, count) VALUES(?, ?, ?) ON CONFLICT(collected_id, raw) DO UPDATE SET count = MAX(count, excluded.count)",
-				gid, v.Raw, v.Count); err != nil {
+			if err := s.addVariant(tx, gid, v.Raw, v.Count, "MAX(count, excluded.count)"); err != nil {
 				return r, err
 			}
 		}
@@ -522,7 +536,9 @@ func (s *Store) ExportDatabase(path string) error {
 // computer, or an exported copy) as a backup. The file itself is never
 // changed: it is copied (with its -wal journal, if any) into tmpDir, and
 // the copy is opened, which also upgrades it if it is older.
-func BackupFromDatabase(path, tmpDir string) (Backup, error) {
+// An encrypted file opens only with this computer's key: the one in use
+// (s), when the file was made here (Library ▸ Export ▸ database copy).
+func (s *Store) BackupFromDatabase(path, tmpDir string) (Backup, error) {
 	copyPath := filepath.Join(tmpDir, "import.db")
 	for _, ext := range []string{"", "-wal"} {
 		if err := copyFile(path+ext, copyPath+ext); err != nil {
@@ -541,8 +557,21 @@ func BackupFromDatabase(path, tmpDir string) (Backup, error) {
 	if err := c.db.QueryRow("SELECT COUNT(*) FROM commands").Scan(&n); err != nil {
 		return Backup{}, fmt.Errorf("not a Cmdex database: %w", err)
 	}
+	if c.Locked() {
+		if s == nil || s.box == nil {
+			return Backup{}, ErrForeignKey
+		}
+		if v, err := s.box.open("crypto.check", c.Setting("crypto.check", "")); err != nil || v != checkValue {
+			return Backup{}, ErrForeignKey
+		}
+		c.box = s.box
+	}
 	return c.ExportBackup("")
 }
+
+// ErrForeignKey is returned for a database copy encrypted on another
+// computer (or for another user): its key is not here.
+var ErrForeignKey = errors.New("this database file is encrypted with another computer's key: on that computer, export a JSON backup (Library ▸ Export) and import that file here")
 
 func copyFile(src, dst string) error {
 	in, err := os.Open(src)

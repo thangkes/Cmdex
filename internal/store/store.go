@@ -148,6 +148,23 @@ type Store struct {
 	base     *sql.DB // defaults database (nil until UseDefaults)
 	basePath string
 	packs    []Pack // what the defaults were built from
+
+	box *box // encrypts sensitive values; nil until Unlock (and in tests: plain)
+}
+
+// seal, open and look apply the database key (see crypto.go) to a value of
+// field ("table.column").
+func (s *Store) seal(field, v string) string { return s.box.seal(field, v) }
+
+func (s *Store) open(field, v string) (string, error) { return s.box.open(field, v) }
+
+// look is the lookup value of v: its keyed hash, or v itself while the
+// database is not encrypted.
+func (s *Store) look(field, v string) string {
+	if s.box == nil {
+		return v
+	}
+	return s.box.lookup(field, v)
 }
 
 // DefaultPath is %APPDATA%\Cmdex\cmdex.db on Windows and
@@ -284,14 +301,37 @@ var migrations = []string{
 	`ALTER TABLE collected ADD COLUMN auto INTEGER NOT NULL DEFAULT 0;`,
 	// 4: the kind of device a connection reaches ("" = guess: Linux over SSH)
 	`ALTER TABLE connections ADD COLUMN platform TEXT NOT NULL DEFAULT '';`,
+	// 5: lookup columns, so values can be encrypted (Store.look): for now
+	// they hold the values themselves; Unlock turns them into keyed hashes
+	`ALTER TABLE commands ADD COLUMN template_mac TEXT NOT NULL DEFAULT '';
+	UPDATE commands SET template_mac = template;
+	DROP INDEX commands_template;
+	CREATE UNIQUE INDEX commands_template_mac ON commands(platform, template_mac);
+	ALTER TABLE collected ADD COLUMN signature_mac TEXT NOT NULL DEFAULT '';
+	UPDATE collected SET signature_mac = signature;
+	CREATE UNIQUE INDEX collected_signature_mac ON collected(signature_mac);
+	CREATE TABLE variants_new(
+		collected_id INTEGER NOT NULL REFERENCES collected(id) ON DELETE CASCADE,
+		raw TEXT NOT NULL,
+		raw_mac TEXT NOT NULL,
+		count INTEGER NOT NULL DEFAULT 1,
+		PRIMARY KEY(collected_id, raw_mac)
+	);
+	INSERT INTO variants_new(collected_id, raw, raw_mac, count) SELECT collected_id, raw, raw, count FROM variants;
+	DROP TABLE variants;
+	ALTER TABLE variants_new RENAME TO variants;`,
 }
 
-func (s *Store) migrate() error {
+func (s *Store) migrate() error { return s.migrateTo(len(migrations)) }
+
+// migrateTo applies the migrations up to version n (tests build older
+// databases with it).
+func (s *Store) migrateTo(n int) error {
 	var v int
 	if err := s.db.QueryRow("PRAGMA user_version").Scan(&v); err != nil {
 		return err
 	}
-	for i := v; i < len(migrations); i++ {
+	for i := v; i < n; i++ {
 		tx, err := s.db.Begin()
 		if err != nil {
 			return err
@@ -353,12 +393,23 @@ func (s *Store) SetSetting(key, value string) error {
 
 const commandCols = "id, name, platform, shell, category, template, purpose, notes, danger, tags, envs, params, uses, source, created, updated, base_key"
 
-func scanCommand(sc interface{ Scan(...any) error }) (Command, error) {
+// scanCommand reads a command row, decrypting its sealed columns with b
+// (the defaults database holds plain values: any b reads them).
+func scanCommand(b *box, sc interface{ Scan(...any) error }) (Command, error) {
 	var c Command
 	var tags, envs, params string
 	err := sc.Scan(&c.ID, &c.Name, &c.Platform, &c.Shell, &c.Category, &c.Template, &c.Purpose, &c.Notes, &c.Danger, &tags, &envs, &params, &c.Uses, &c.Source, &c.Created, &c.Updated, &c.BaseKey)
 	if err != nil {
 		return c, err
+	}
+	for _, f := range []struct {
+		name string
+		v    *string
+	}{{"commands.name", &c.Name}, {"commands.template", &c.Template}, {"commands.purpose", &c.Purpose}, {"commands.notes", &c.Notes},
+		{"commands.tags", &tags}, {"commands.envs", &envs}, {"commands.params", &params}} {
+		if *f.v, err = b.open(f.name, *f.v); err != nil {
+			return c, err
+		}
 	}
 	c.Tags, c.Envs = splitList(tags), splitList(envs)
 	if json.Unmarshal([]byte(params), &c.Params) != nil || c.Params == nil {
@@ -391,14 +442,14 @@ func (s *Store) Commands() ([]Command, error) {
 
 // userCommands returns the commands of the user's database only.
 func (s *Store) userCommands() ([]Command, error) {
-	rows, err := s.db.Query("SELECT " + commandCols + " FROM commands ORDER BY uses DESC, name")
+	rows, err := s.db.Query("SELECT " + commandCols + " FROM commands ORDER BY uses DESC, id")
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	out := []Command{}
 	for rows.Next() {
-		c, err := scanCommand(rows)
+		c, err := scanCommand(s.box, rows)
 		if err != nil {
 			return nil, err
 		}
@@ -412,7 +463,29 @@ func (s *Store) Command(id int64) (Command, error) {
 	if id < 0 {
 		return s.defaultCommand("id = ?", -id)
 	}
-	return scanCommand(s.db.QueryRow("SELECT "+commandCols+" FROM commands WHERE id = ?", id))
+	return scanCommand(s.box, s.db.QueryRow("SELECT "+commandCols+" FROM commands WHERE id = ?", id))
+}
+
+// sealedCommand is how a command's sensitive columns are stored.
+type sealedCommand struct{ name, template, purpose, notes, tags, envs, params, mac string }
+
+func (s *Store) sealCommand(c Command) sealedCommand {
+	params, _ := json.Marshal(nonNilParams(c.Params))
+	return sealedCommand{
+		name: s.seal("commands.name", c.Name), template: s.seal("commands.template", c.Template),
+		purpose: s.seal("commands.purpose", c.Purpose), notes: s.seal("commands.notes", c.Notes),
+		tags: s.seal("commands.tags", joinList(c.Tags)), envs: s.seal("commands.envs", joinList(c.Envs)),
+		params: s.seal("commands.params", string(params)), mac: s.look("commands.template", c.Template),
+	}
+}
+
+// commandIDByTemplate finds a command of the user's by platform and template.
+func (s *Store) commandIDByTemplate(q interface {
+	QueryRow(string, ...any) *sql.Row
+}, platform, template string) (int64, error) {
+	var id int64
+	err := q.QueryRow("SELECT id FROM commands WHERE platform = ? AND template_mac = ?", platform, s.look("commands.template", template)).Scan(&id)
+	return id, err
 }
 
 // ErrDuplicate is returned when a command with the same platform and
@@ -459,25 +532,22 @@ func (s *Store) SaveCommand(c Command) (int64, error) {
 	if c.Source == "" {
 		c.Source = "user"
 	}
-	params, _ := json.Marshal(c.Params)
-	if c.Params == nil {
-		params = []byte("[]")
-	}
+	sc := s.sealCommand(c)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	t := now()
 	var err error
 	if c.ID == 0 {
 		var res sql.Result
-		res, err = s.db.Exec(`INSERT INTO commands(name, platform, shell, category, template, purpose, notes, danger, tags, envs, params, uses, source, created, updated, base_key)
-			VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			c.Name, c.Platform, c.Shell, c.Category, c.Template, c.Purpose, c.Notes, c.Danger, joinList(c.Tags), joinList(c.Envs), string(params), c.Uses, c.Source, t, t, c.BaseKey)
+		res, err = s.db.Exec(`INSERT INTO commands(name, platform, shell, category, template, purpose, notes, danger, tags, envs, params, uses, source, created, updated, base_key, template_mac)
+			VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			sc.name, c.Platform, c.Shell, c.Category, sc.template, sc.purpose, sc.notes, c.Danger, sc.tags, sc.envs, sc.params, c.Uses, c.Source, t, t, c.BaseKey, sc.mac)
 		if err == nil {
 			c.ID, err = res.LastInsertId()
 		}
 	} else {
-		_, err = s.db.Exec(`UPDATE commands SET name = ?, platform = ?, shell = ?, category = ?, template = ?, purpose = ?, notes = ?, danger = ?, tags = ?, envs = ?, params = ?, updated = ? WHERE id = ?`,
-			c.Name, c.Platform, c.Shell, c.Category, c.Template, c.Purpose, c.Notes, c.Danger, joinList(c.Tags), joinList(c.Envs), string(params), t, c.ID)
+		_, err = s.db.Exec(`UPDATE commands SET name = ?, platform = ?, shell = ?, category = ?, template = ?, purpose = ?, notes = ?, danger = ?, tags = ?, envs = ?, params = ?, updated = ?, template_mac = ? WHERE id = ?`,
+			sc.name, c.Platform, c.Shell, c.Category, sc.template, sc.purpose, sc.notes, c.Danger, sc.tags, sc.envs, sc.params, t, sc.mac, c.ID)
 	}
 	if err != nil && strings.Contains(err.Error(), "UNIQUE") {
 		return 0, ErrDuplicate

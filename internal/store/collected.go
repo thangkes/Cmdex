@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"sort"
 	"strings"
 )
 
@@ -52,15 +53,10 @@ func (s *Store) AddCollected(signature, category, source string, secret bool, ra
 	t := now()
 	var id, target int64
 	var status string
-	err = tx.QueryRow("SELECT id, status, IFNULL(target, 0) FROM collected WHERE signature = ?", signature).Scan(&id, &status, &target)
+	err = tx.QueryRow("SELECT id, status, IFNULL(target, 0) FROM collected WHERE signature_mac = ?", s.look("collected.signature", signature)).Scan(&id, &status, &target)
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
-		res, err := tx.Exec("INSERT INTO collected(signature, category, source, secret, first_seen, last_seen) VALUES(?, ?, ?, ?, ?, ?)",
-			signature, category, source, secret, t, t)
-		if err != nil {
-			return 0, err
-		}
-		if id, err = res.LastInsertId(); err != nil {
+		if id, err = s.insertGroup(tx, signature, category, source, secret, t, t); err != nil {
 			return 0, err
 		}
 	case err != nil:
@@ -70,7 +66,7 @@ func (s *Store) AddCollected(signature, category, source string, secret bool, ra
 			return 0, err
 		}
 	}
-	if _, err := tx.Exec("INSERT INTO variants(collected_id, raw, count) VALUES(?, ?, 1) ON CONFLICT(collected_id, raw) DO UPDATE SET count = count + 1", id, raw); err != nil {
+	if err := s.addVariant(tx, id, raw, 1, "count + excluded.count"); err != nil {
 		return 0, err
 	}
 	if status != StatusMerged {
@@ -94,6 +90,10 @@ func (s *Store) CollectedList(status string) ([]Collected, error) {
 			rows.Close()
 			return nil, err
 		}
+		if c.Signature, err = s.open("collected.signature", c.Signature); err != nil {
+			rows.Close()
+			return nil, err
+		}
 		out = append(out, c)
 	}
 	rows.Close()
@@ -101,7 +101,7 @@ func (s *Store) CollectedList(status string) ([]Collected, error) {
 		return nil, err
 	}
 	for i := range out {
-		vr, err := s.db.Query("SELECT raw, count FROM variants WHERE collected_id = ? ORDER BY count DESC LIMIT 20", out[i].ID)
+		vr, err := s.db.Query("SELECT raw, count FROM variants WHERE collected_id = ? ORDER BY count DESC, rowid LIMIT 20", out[i].ID)
 		if err != nil {
 			return nil, err
 		}
@@ -112,11 +112,47 @@ func (s *Store) CollectedList(status string) ([]Collected, error) {
 				vr.Close()
 				return nil, err
 			}
+			if v.Raw, err = s.open("variants.raw", v.Raw); err != nil {
+				vr.Close()
+				return nil, err
+			}
 			out[i].Variants = append(out[i].Variants, v)
 		}
 		vr.Close()
 	}
 	return out, nil
+}
+
+// execer is a database or a transaction.
+type execer interface {
+	QueryRow(string, ...any) *sql.Row
+	Exec(string, ...any) (sql.Result, error)
+}
+
+// groupID finds a collected group by its template.
+func (s *Store) groupID(q execer, signature string) (int64, error) {
+	var id int64
+	err := q.QueryRow("SELECT id FROM collected WHERE signature_mac = ?", s.look("collected.signature", signature)).Scan(&id)
+	return id, err
+}
+
+// insertGroup adds a collected group, its template sealed.
+func (s *Store) insertGroup(q execer, signature, category, source string, secret bool, first, last int64) (int64, error) {
+	res, err := q.Exec("INSERT INTO collected(signature, signature_mac, category, source, secret, first_seen, last_seen) VALUES(?, ?, ?, ?, ?, ?, ?)",
+		s.seal("collected.signature", signature), s.look("collected.signature", signature), category, source, secret, first, last)
+	if err != nil {
+		return 0, err
+	}
+	return res.LastInsertId()
+}
+
+// addVariant counts runs of a line in a group, the line sealed; merge says
+// how a line already there is counted ("count + excluded.count", or
+// "MAX(count, excluded.count)" for imports).
+func (s *Store) addVariant(q execer, gid int64, raw string, count int, merge string) error {
+	_, err := q.Exec("INSERT INTO variants(collected_id, raw, raw_mac, count) VALUES(?, ?, ?, ?) ON CONFLICT(collected_id, raw_mac) DO UPDATE SET count = "+merge,
+		gid, s.seal("variants.raw", raw), s.look("variants.raw", raw), count)
+	return err
 }
 
 // SetCollectedStatus records what the user decided for a group.
@@ -217,36 +253,58 @@ func (c Connection) SessionPlatform() string {
 	return ""
 }
 
-// Connections returns the saved profiles.
+const connectionCols = "id, kind, name, host, port, user, auth, key_path, serial, created, platform"
+
+// scanConnection reads a profile, decrypting its sealed columns.
+func (s *Store) scanConnection(sc interface{ Scan(...any) error }) (Connection, error) {
+	var c Connection
+	var serial string
+	if err := sc.Scan(&c.ID, &c.Kind, &c.Name, &c.Host, &c.Port, &c.User, &c.Auth, &c.KeyPath, &serial, &c.Created, &c.Platform); err != nil {
+		return c, err
+	}
+	var err error
+	for _, f := range []struct {
+		name string
+		v    *string
+	}{{"connections.name", &c.Name}, {"connections.host", &c.Host}, {"connections.user", &c.User}, {"connections.key_path", &c.KeyPath}, {"connections.serial", &serial}} {
+		if *f.v, err = s.open(f.name, *f.v); err != nil {
+			return c, err
+		}
+	}
+	json.Unmarshal([]byte(serial), &c.Serial)
+	return c, nil
+}
+
+// Connections returns the saved profiles, by name.
 func (s *Store) Connections() ([]Connection, error) {
-	rows, err := s.db.Query("SELECT id, kind, name, host, port, user, auth, key_path, serial, created, platform FROM connections ORDER BY name")
+	rows, err := s.db.Query("SELECT " + connectionCols + " FROM connections")
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	out := []Connection{}
 	for rows.Next() {
-		var c Connection
-		var serial string
-		if err := rows.Scan(&c.ID, &c.Kind, &c.Name, &c.Host, &c.Port, &c.User, &c.Auth, &c.KeyPath, &serial, &c.Created, &c.Platform); err != nil {
+		c, err := s.scanConnection(rows)
+		if err != nil {
 			return nil, err
 		}
-		json.Unmarshal([]byte(serial), &c.Serial)
 		out = append(out, c)
 	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out, rows.Err()
 }
 
 // Connection returns one profile.
 func (s *Store) Connection(id int64) (Connection, error) {
-	var c Connection
-	var serial string
-	err := s.db.QueryRow("SELECT id, kind, name, host, port, user, auth, key_path, serial, created, platform FROM connections WHERE id = ?", id).
-		Scan(&c.ID, &c.Kind, &c.Name, &c.Host, &c.Port, &c.User, &c.Auth, &c.KeyPath, &serial, &c.Created, &c.Platform)
-	if err == nil {
-		json.Unmarshal([]byte(serial), &c.Serial)
-	}
-	return c, err
+	return s.scanConnection(s.db.QueryRow("SELECT "+connectionCols+" FROM connections WHERE id = ?", id))
+}
+
+// sealConnection returns the stored form of name, host, user, key path and
+// serial settings.
+func (s *Store) sealConnection(c Connection) (name, host, user, keyPath, serial string) {
+	sj, _ := json.Marshal(c.Serial)
+	return s.seal("connections.name", c.Name), s.seal("connections.host", c.Host), s.seal("connections.user", c.User),
+		s.seal("connections.key_path", c.KeyPath), s.seal("connections.serial", string(sj))
 }
 
 // SaveConnection inserts (ID 0) or updates a profile.
@@ -265,19 +323,19 @@ func (s *Store) SaveConnection(c Connection) (int64, error) {
 			c.Name = c.Serial.Port
 		}
 	}
-	serial, _ := json.Marshal(c.Serial)
+	name, host, user, keyPath, serial := s.sealConnection(c)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if c.ID == 0 {
 		res, err := s.db.Exec("INSERT INTO connections(kind, name, host, port, user, auth, key_path, serial, created, platform) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-			c.Kind, c.Name, c.Host, c.Port, c.User, c.Auth, c.KeyPath, string(serial), now(), c.Platform)
+			c.Kind, name, host, c.Port, user, c.Auth, keyPath, serial, now(), c.Platform)
 		if err != nil {
 			return 0, err
 		}
 		return res.LastInsertId()
 	}
 	_, err := s.db.Exec("UPDATE connections SET kind = ?, name = ?, host = ?, port = ?, user = ?, auth = ?, key_path = ?, serial = ?, platform = ? WHERE id = ?",
-		c.Kind, c.Name, c.Host, c.Port, c.User, c.Auth, c.KeyPath, string(serial), c.Platform, c.ID)
+		c.Kind, name, host, c.Port, user, c.Auth, keyPath, serial, c.Platform, c.ID)
 	return c.ID, err
 }
 
@@ -319,6 +377,13 @@ func (s *Store) RewriteVariants(fix func(raw string) (line, signature string, se
 			rows.Close()
 			return 0, err
 		}
+		if r.sig, err = s.open("collected.signature", r.sig); err == nil {
+			r.raw, err = s.open("variants.raw", r.raw)
+		}
+		if err != nil {
+			rows.Close()
+			return 0, err
+		}
 		all = append(all, r)
 	}
 	rows.Close()
@@ -329,28 +394,23 @@ func (s *Store) RewriteVariants(fix func(raw string) (line, signature string, se
 			continue
 		}
 		changed++
-		if _, err := tx.Exec("DELETE FROM variants WHERE collected_id = ? AND raw = ?", r.gid, r.raw); err != nil {
+		if _, err := tx.Exec("DELETE FROM variants WHERE collected_id = ? AND raw_mac = ?", r.gid, s.look("variants.raw", r.raw)); err != nil {
 			return changed, err
 		}
 		if !ok { // nothing usable left: drop it
 			continue
 		}
-		var gid int64
-		err := tx.QueryRow("SELECT id FROM collected WHERE signature = ?", sig).Scan(&gid)
+		gid, err := s.groupID(tx, sig)
 		if errors.Is(err, sql.ErrNoRows) {
-			res, err := tx.Exec("INSERT INTO collected(signature, category, source, secret, first_seen, last_seen) VALUES(?, ?, ?, ?, ?, ?)",
-				sig, r.cat, r.src, secret, r.first, r.last)
-			if err != nil {
+			if gid, err = s.insertGroup(tx, sig, r.cat, r.src, secret, r.first, r.last); err != nil {
 				return changed, err
 			}
-			gid, _ = res.LastInsertId()
 		} else if err != nil {
 			return changed, err
 		} else if secret {
 			tx.Exec("UPDATE collected SET secret = 1 WHERE id = ?", gid)
 		}
-		if _, err := tx.Exec("INSERT INTO variants(collected_id, raw, count) VALUES(?, ?, ?) ON CONFLICT(collected_id, raw) DO UPDATE SET count = count + excluded.count",
-			gid, line, r.count); err != nil {
+		if err := s.addVariant(tx, gid, line, r.count, "count + excluded.count"); err != nil {
 			return changed, err
 		}
 	}
@@ -375,7 +435,7 @@ func (s *Store) RewriteTemplates(fix func(string) string) (int, error) {
 		}
 		if t := fix(c.Template); t != c.Template {
 			s.mu.Lock()
-			_, err := s.db.Exec("UPDATE commands SET template = ? WHERE id = ?", t, c.ID)
+			_, err := s.db.Exec("UPDATE commands SET template = ?, template_mac = ? WHERE id = ?", s.seal("commands.template", t), s.look("commands.template", t), c.ID)
 			s.mu.Unlock()
 			if err != nil && !strings.Contains(err.Error(), "UNIQUE") {
 				return n, err

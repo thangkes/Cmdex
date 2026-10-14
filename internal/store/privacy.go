@@ -45,7 +45,7 @@ func (s *Store) ScrubBackup(fixLine func(raw string) (line, signature string, se
 		return true, err
 	}
 	defer db.Close()
-	b := &Store{db: db}
+	b := &Store{db: db, box: s.box}
 	if _, err := b.RewriteVariants(fixLine); err != nil {
 		return true, err
 	}
@@ -58,13 +58,17 @@ func (s *Store) ScrubBackup(fixLine func(raw string) (line, signature string, se
 		var id int64
 		var t string
 		rows.Scan(&id, &t)
+		if t, err = b.open("commands.template", t); err != nil {
+			rows.Close()
+			return true, err
+		}
 		if nt := fixTemplate(t); nt != t {
 			fixed[id] = nt
 		}
 	}
 	rows.Close()
 	for id, t := range fixed {
-		if _, err := db.Exec("UPDATE commands SET template = ? WHERE id = ?", t, id); err != nil {
+		if _, err := db.Exec("UPDATE commands SET template = ?, template_mac = ? WHERE id = ?", b.seal("commands.template", t), b.look("commands.template", t), id); err != nil {
 			// another command already has the masked template: drop this copy's secret anyway
 			if _, err := db.Exec("DELETE FROM commands WHERE id = ?", id); err != nil {
 				return true, err

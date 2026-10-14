@@ -322,7 +322,7 @@ func (s *Store) defaultCommands(user []Command) ([]Command, error) {
 	defer rows.Close()
 	var out []Command
 	for rows.Next() {
-		c, err := scanCommand(rows)
+		c, err := scanCommand(nil, rows)
 		if err != nil {
 			return nil, err
 		}
@@ -344,7 +344,7 @@ func (s *Store) defaultCommand(where string, args ...any) (Command, error) {
 	if s.base == nil {
 		return Command{}, sql.ErrNoRows
 	}
-	c, err := scanCommand(s.base.QueryRow("SELECT "+commandCols+" FROM commands WHERE "+where, args...))
+	c, err := scanCommand(nil, s.base.QueryRow("SELECT "+commandCols+" FROM commands WHERE "+where, args...))
 	if err != nil {
 		return c, err
 	}
@@ -367,7 +367,7 @@ func (s *Store) defaultShown(key string) bool {
 	}
 	platform, template, _ := strings.Cut(key, " ")
 	var n int
-	s.db.QueryRow("SELECT COUNT(*) FROM commands WHERE base_key = ? OR (platform = ? AND template = ?)", key, platform, template).Scan(&n)
+	s.db.QueryRow("SELECT COUNT(*) FROM commands WHERE base_key = ? OR (platform = ? AND template_mac = ?)", key, platform, s.look("commands.template", template)).Scan(&n)
 	return n == 0
 }
 
@@ -557,6 +557,13 @@ func (s *Store) adopt() error {
 			q.Close()
 			return err
 		}
+		if r.template, err = s.open("commands.template", r.template); err == nil {
+			r.name, err = s.open("commands.name", r.name)
+		}
+		if err != nil {
+			q.Close()
+			return err
+		}
 		rows = append(rows, r)
 	}
 	q.Close()
@@ -575,7 +582,8 @@ func (s *Store) adopt() error {
 			}
 		}
 		var taken int
-		tx.QueryRow("SELECT COUNT(*) FROM commands WHERE id != ? AND (base_key = ? OR platform || ' ' || template = ?)", r.id, target, target).Scan(&taken)
+		tp, tt, _ := strings.Cut(target, " ")
+		tx.QueryRow("SELECT COUNT(*) FROM commands WHERE id != ? AND (base_key = ? OR (platform = ? AND template_mac = ?))", r.id, target, tp, s.look("commands.template", tt)).Scan(&taken)
 		if r.updated == r.created { // never edited: the default replaces it
 			if _, err := tx.Exec(`INSERT INTO base_state(kind, key, uses) VALUES('command', ?, ?)
 				ON CONFLICT(kind, key) DO UPDATE SET uses = MAX(uses, excluded.uses)`, target, r.uses); err != nil {

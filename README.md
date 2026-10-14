@@ -17,7 +17,7 @@
 - **Understand any command.** Paste a command line and Cmdex draws it with every part labelled — program, options, values, operators — with arrows pointing at each part. Combined options like `-ano` or `-tulpn` are split letter by letter. Knowledge comes from your library and from the help already on your computer (`man`, `Get-Help`, `/?`).
 - **Collect while you work.** Cmdex reads your shell history and the commands you run through it, **hides passwords and tokens first**, turns values (IPs, hosts, ports, paths, numbers) into parameters, merges lines that differ only in values, classifies them with your rules, and waits for your approval before anything enters the library. Every command counts, `cd`, `dir` and `ls` included: the folders you visit become `{path}`, so `cd Desktop` and `cd D:\Work` are one template. Optionally, commands that resemble one in your library (50, 75, 85 or 100% alike — your choice) are merged into it automatically; new ones always wait for you. The collected log can be cleared at any time or after 7, 30 or 90 days.
 - **Your library, your environment.** Two SQLite files on your computer, read as one library:
-  - **your database** (`%APPDATA%\Cmdex\cmdex.db`, `~/.config/cmdex/cmdex.db`): the commands you add, collect or change, connections and settings. Updates never touch it.
+  - **your database** (`%APPDATA%\Cmdex\cmdex.db`, `~/.config/cmdex/cmdex.db`): the commands you add, collect or change, connections and settings. Updates never touch it. Its sensitive values (connections, your commands, the collected log) are **encrypted**, with a key kept in the system keychain.
   - **the starter commands** (`cmdex-defaults-….db`, next to it): about 100 common Windows and Linux commands with explanations, built from the packs inside the program and refreshed by every update.
 
   Edit a starter command and it becomes your own copy, which updates leave alone; delete one and it stays deleted (**Restore starter commands** brings it back). Import and export packs as JSON.
@@ -59,7 +59,7 @@ tar -xzf "Cmdex-Linux-amd64-$VER.tar.gz"
 
 - Start Cmdex from the menu, or `cmdex` in a terminal. If the terminal says "command not found", add `~/.local/bin` to your PATH: `echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.profile`, then open a new terminal.
 - Serial consoles (Cisco console cable, USB-serial): `sudo usermod -aG dialout "$USER"` (Arch: `uucp` instead of `dialout`), then log out and in.
-- Remembering passwords needs a password keyring (Secret Service): GNOME Keyring is there on GNOME desktops (else install `gnome-keyring`); recent KDE Plasma's KWallet works too. Without one Cmdex works but asks for passwords each time.
+- A password keyring (Secret Service) keeps the key of your encrypted library and your connection passwords: GNOME Keyring is there on GNOME desktops (else install `gnome-keyring`); recent KDE Plasma's KWallet works too. Without one, Cmdex asks for a master password at each start and for connection passwords each time.
 - Updates: Cmdex offers them itself; `cmdex --update` installs one at once.
 
 **Uninstall**
@@ -172,7 +172,7 @@ License: [MIT](LICENSE).
 - **Hiểu mọi dòng lệnh.** Dán một lệnh vào, Cmdex vẽ lệnh đó với từng phần được ghi chú — chương trình, tùy chọn, giá trị, toán tử — có mũi tên chỉ vào đúng chỗ. Tùy chọn ghép như `-ano`, `-tulpn` được tách từng chữ. Giải nghĩa lấy từ thư viện của bạn và từ trợ giúp có sẵn trên máy (`man`, `Get-Help`, `/?`).
 - **Tự thu thập khi bạn làm việc.** Cmdex đọc lịch sử shell và các lệnh chạy qua nó, **che mật khẩu/token trước tiên**, đổi giá trị (IP, tên máy, cổng, đường dẫn, số) thành tham số, gộp những dòng chỉ khác giá trị, phân loại theo quy tắc của bạn, và chờ bạn duyệt rồi mới đưa vào thư viện. Mọi lệnh đều được thu thập, kể cả `cd`, `dir`, `ls`: thư mục bạn vào được đổi thành `{path}`, nên `cd Desktop` và `cd D:\Work` gộp chung một mẫu. Có thể bật tự gộp: lệnh giống một lệnh trong thư viện từ mức bạn chọn (50, 75, 85 hoặc 100%) được gộp luôn vào lệnh đó; lệnh mới vẫn luôn chờ bạn duyệt. Nhật ký thu thập xoá được bất cứ lúc nào, hoặc tự xoá sau 7, 30, 90 ngày.
 - **Thư viện của bạn, theo môi trường của bạn.** Hai file SQLite trên máy, được đọc gộp thành một thư viện:
-  - **database của bạn** (`%APPDATA%\Cmdex\cmdex.db`, `~/.config/cmdex/cmdex.db`): lệnh bạn thêm, thu thập hay sửa, kết nối và cài đặt. Cập nhật không bao giờ đụng vào.
+  - **database của bạn** (`%APPDATA%\Cmdex\cmdex.db`, `~/.config/cmdex/cmdex.db`): lệnh bạn thêm, thu thập hay sửa, kết nối và cài đặt. Cập nhật không bao giờ đụng vào. Dữ liệu nhạy cảm trong đó (kết nối, lệnh của bạn, nhật ký thu thập) được **mã hóa**, khóa nằm trong kho bảo mật của hệ điều hành.
   - **lệnh mẫu** (`cmdex-defaults-….db`, nằm cạnh file trên): khoảng 100 lệnh Windows và Linux thông dụng kèm giải nghĩa, dựng từ các gói lệnh có sẵn trong chương trình và được làm mới mỗi lần cập nhật.
 
   Sửa một lệnh mẫu thì nó thành bản của riêng bạn, các bản cập nhật không đè lên; xoá thì nó không tự quay lại (nút **Khôi phục lệnh mẫu** đưa lại). Nhập/xuất gói lệnh dạng JSON.
@@ -214,7 +214,7 @@ tar -xzf "Cmdex-Linux-amd64-$VER.tar.gz"
 
 - Mở Cmdex từ menu, hoặc gõ `cmdex` trong terminal. Nếu báo "command not found", thêm `~/.local/bin` vào PATH: `echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.profile`, rồi mở terminal mới.
 - Cổng COM (cáp console Cisco, USB-serial): `sudo usermod -aG dialout "$USER"` (Arch dùng `uucp` thay cho `dialout`), rồi đăng xuất và đăng nhập lại.
-- Ghi nhớ mật khẩu cần kho mật khẩu (Secret Service): desktop GNOME có sẵn GNOME Keyring (nếu không thì cài gói `gnome-keyring`); KWallet của KDE Plasma bản mới cũng dùng được. Không có thì Cmdex vẫn chạy, chỉ là phải nhập mật khẩu mỗi lần.
+- Kho mật khẩu (Secret Service) giữ khóa của thư viện đã mã hóa và mật khẩu kết nối: desktop GNOME có sẵn GNOME Keyring (nếu không thì cài gói `gnome-keyring`); KWallet của KDE Plasma bản mới cũng dùng được. Không có thì Cmdex hỏi mật khẩu chính mỗi lần mở, và hỏi mật khẩu kết nối mỗi lần dùng.
 - Cập nhật: Cmdex tự báo khi có bản mới; `cmdex --update` để cài ngay.
 
 **Gỡ cài đặt**

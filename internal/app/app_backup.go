@@ -37,7 +37,7 @@ type loaded struct {
 
 var sqliteMagic = []byte("SQLite format 3\x00")
 
-func loadImport(path string) (loaded, error) {
+func loadImport(cur *store.Store, path string) (loaded, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return loaded{}, err
@@ -51,7 +51,7 @@ func loadImport(path string) (loaded, error) {
 			return loaded{}, err
 		}
 		defer os.RemoveAll(tmp)
-		b, err := store.BackupFromDatabase(path, tmp)
+		b, err := cur.BackupFromDatabase(path, tmp)
 		return loaded{kind: "db", backup: b}, err
 	}
 	data, err := os.ReadFile(path)
@@ -105,7 +105,7 @@ func (a *App) PickImport() (ImportPreview, error) {
 
 // InspectImport describes a file without importing it.
 func (a *App) InspectImport(path string) (ImportPreview, error) {
-	l, err := loadImport(path)
+	l, err := loadImport(a.store, path)
 	if err != nil {
 		return ImportPreview{}, err
 	}
@@ -115,7 +115,7 @@ func (a *App) InspectImport(path string) (ImportPreview, error) {
 // ImportFrom imports a file. replace empties the library first (backups and
 // databases only); otherwise the file is merged in.
 func (a *App) ImportFrom(path string, replace bool) (store.BackupResult, error) {
-	l, err := loadImport(path)
+	l, err := loadImport(a.store, path)
 	if err != nil {
 		return store.BackupResult{}, err
 	}

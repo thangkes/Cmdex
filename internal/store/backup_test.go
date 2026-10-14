@@ -180,7 +180,7 @@ func TestDatabaseFileExportAndImport(t *testing.T) {
 		t.Fatal(err)
 	}
 	before, _ := os.ReadFile(file)
-	b, err := BackupFromDatabase(file, t.TempDir())
+	b, err := a.BackupFromDatabase(file, t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -195,7 +195,7 @@ func TestDatabaseFileExportAndImport(t *testing.T) {
 		t.Fatalf("%v vs %v", got, want)
 	}
 	os.WriteFile(filepath.Join(dir, "junk.db"), []byte("not sqlite at all, just text"), 0o600)
-	if _, err := BackupFromDatabase(filepath.Join(dir, "junk.db"), t.TempDir()); err == nil {
+	if _, err := a.BackupFromDatabase(filepath.Join(dir, "junk.db"), t.TempDir()); err == nil {
 		t.Fatal("junk accepted")
 	}
 }

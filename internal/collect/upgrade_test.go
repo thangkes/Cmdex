@@ -125,3 +125,83 @@ func TestUpgradeLeavesUserDataAlone(t *testing.T) {
 		}
 	}
 }
+
+// view is what the user sees of a library, through the store (decrypted).
+func view(t *testing.T, s *store.Store) string {
+	t.Helper()
+	var b strings.Builder
+	cmds, err := s.Commands()
+	if err != nil {
+		t.Fatal(err)
+	}
+	conns, err := s.Connections()
+	if err != nil {
+		t.Fatal(err)
+	}
+	groups, err := s.CollectedList("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rules, _ := s.Rules()
+	syn, _ := s.Synonyms()
+	for _, c := range cmds {
+		c.Created, c.Updated = 0, 0
+		fmt.Fprintf(&b, "cmd %+v\n", c)
+	}
+	for _, c := range conns {
+		fmt.Fprintf(&b, "conn %+v\n", c)
+	}
+	for _, g := range groups {
+		fmt.Fprintf(&b, "group %+v\n", g)
+	}
+	fmt.Fprintf(&b, "rules %+v\nsynonyms %v\nlang %s theme %s\n", rules, syn, s.Setting("lang", ""), s.Setting("theme", ""))
+	return b.String()
+}
+
+// Encrypting a library (first start of 0.1.6) and opening it again with its
+// key show exactly the same library.
+func TestEncryptionKeepsLibrary(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "cmdex.db")
+	s := startup(t, path)
+	s.SetSetting("theme", "dusk")
+	s.SaveCommand(store.Command{Name: "Mine", Platform: store.Windows, Template: "Get-Date -Format o", Danger: 1, Tags: []string{"date"}})
+	cmds, _ := s.Commands()
+	edited := cmds[0]
+	edited.Name = "Edited default"
+	s.SaveCommand(edited)
+	s.DeleteCommand(cmds[1].ID)
+	s.AddUses(cmds[2].ID, 4)
+	s.SaveConnection(store.Connection{Kind: "ssh", Name: "web-01", Host: "10.0.0.10", Port: 22, User: "root", Auth: "key", KeyPath: "~/.ssh/k", Platform: store.Cisco})
+	s.SaveConnection(store.Connection{Kind: "serial", Name: "console", Serial: store.Serial{Port: "COM3", Baud: 9600, DataBits: 8, Parity: "none", StopBits: "1", LineEnd: "cr"}})
+	c := &Collector{Store: s}
+	c.Add("ping 1.1.1.1 -n 4", "powershell")
+	c.Add("ping 8.8.8.8 -n 2", "powershell")
+	c.Add(`cd C:\Work\Client`, "powershell")
+	g, _ := s.CollectedList("")
+	s.SetCollectedStatus(g[0].ID, store.StatusIgnored, 0)
+	s.SaveRule(store.Rule{Kind: "category", Match: "git", Result: "Code"})
+	before := view(t, s)
+
+	key := store.NewDatabaseKey()
+	if err := s.SetUpKey(store.KeyKeychain, "t", nil, key); err != nil {
+		t.Fatal(err)
+	}
+	if after := view(t, s); after != before {
+		t.Fatalf("encryption changed the library:\nbefore\n%s\nafter\n%s", before, after)
+	}
+	s.Close()
+	s, err := store.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	if err := s.Unlock(key); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.UseDefaults(packs.All(), "vi"); err != nil {
+		t.Fatal(err)
+	}
+	if again := view(t, s); again != before {
+		t.Fatalf("reopened library differs:\nbefore\n%s\nagain\n%s", before, again)
+	}
+}

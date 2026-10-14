@@ -58,6 +58,10 @@ func transferCLI(out io.Writer, op, file string, replace bool) int {
 		if s, err = store.Open(path); err == nil {
 			defer s.Close()
 			a := &App{store: s}
+			if err := a.openKeyCLI(out); err != nil {
+				fmt.Fprintln(out, strings.TrimPrefix(op, "--"), "failed:", err)
+				return 1
+			}
 			coll := &collect.Collector{Store: s} // as in the app
 			coll.Rescrub()
 			if err := s.UseDefaults(packs.All(), a.lang()); err != nil {
