@@ -80,14 +80,26 @@ func (s *Store) Unlock(key []byte) error {
 	s.mu.Lock()
 	s.box = b
 	n, err := s.sealPlain(s.db)
-	if err == nil && n > 0 {
-		err = erase(s.db)
+	// rewrite the file when values were sealed now, or when the last
+	// rewrite did not finish (a full disk): plain values may linger in its
+	// free pages until then
+	if err == nil && (n > 0 || s.settingLocked("crypto.erased") != "1") {
+		if err = erase(s.db); err == nil {
+			_, err = s.db.Exec("INSERT INTO settings(key, value) VALUES('crypto.erased', '1') ON CONFLICT(key) DO UPDATE SET value = '1'")
+		}
 	}
 	s.mu.Unlock()
 	if err != nil {
 		return err
 	}
 	return s.sealBackup()
+}
+
+// settingLocked reads a setting while s.mu is held.
+func (s *Store) settingLocked(key string) string {
+	var v string
+	s.db.QueryRow("SELECT value FROM settings WHERE key = ?", key).Scan(&v)
+	return v
 }
 
 // Locked reports whether the database waits for its key.
@@ -109,8 +121,10 @@ func (s *Store) sealBackup() error {
 	defer bak.Close()
 	bak.box = s.box
 	n, err := bak.sealPlain(bak.db)
-	if err == nil && n > 0 {
-		err = erase(bak.db)
+	if err == nil && (n > 0 || bak.Setting("crypto.erased", "") != "1") {
+		if err = erase(bak.db); err == nil {
+			err = bak.SetSetting("crypto.erased", "1")
+		}
 	}
 	return err
 }
