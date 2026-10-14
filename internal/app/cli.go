@@ -91,6 +91,10 @@ func transferCLI(out io.Writer, op, file string, replace bool) int {
 }
 
 func updateCLI(out io.Writer) int {
+	if Updates == "off" {
+		fmt.Fprintln(out, "this build updates by building again (scripts/build-linux.sh): releases need WebKitGTK 4.1")
+		return 0
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
 	defer cancel()
 	fmt.Fprintf(out, "Cmdex %s: checking %s\n", Version, update.Repo)

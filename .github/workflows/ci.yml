@@ -27,3 +27,35 @@ jobs:
         run: go vet -tags desktop,production,webkit2_41 ./...
       - name: Test
         run: go test ./...
+
+  # scripts/build-linux.sh on every distribution the README covers: the
+  # package names and steps written there are exactly what runs here.
+  linux-distros:
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - ubuntu:24.04
+          - ubuntu:22.04
+          - debian:12
+          - fedora:latest
+          - archlinux:latest
+          - opensuse/tumbleweed
+          - opensuse/leap:15.6
+          - rockylinux/rockylinux:9
+    runs-on: ubuntu-24.04
+    container: ${{ matrix.image }}
+    steps:
+      - name: Arch is upgraded as a whole before installing
+        if: startsWith(matrix.image, 'archlinux')
+        run: pacman -Syu --noconfirm
+      - name: Leap and Rocky images lack tar/gzip for the checkout
+        if: startsWith(matrix.image, 'opensuse/leap') || startsWith(matrix.image, 'rockylinux')
+        run: (zypper --non-interactive install tar gzip || dnf install -y tar gzip)
+      - uses: actions/checkout@v4
+      - name: Libraries, Go, modules, test, build, install
+        run: sh scripts/build-linux.sh
+      - name: The installed program finds all its libraries
+        run: |
+          ldd "$HOME/.local/bin/cmdex"
+          ! ldd "$HOME/.local/bin/cmdex" | grep "not found"

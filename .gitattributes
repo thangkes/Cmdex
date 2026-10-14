@@ -4,3 +4,5 @@
 *.go text eol=lf
 *.png binary
 *.ico binary
+# shell scripts run on Linux: never CRLF, even in a Windows checkout
+*.sh text eol=lf

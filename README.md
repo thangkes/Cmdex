@@ -26,7 +26,48 @@
 ### Install
 
 - **Windows 10/11:** download `Cmdex-Windows-Setup-<version>.exe` from [Releases](https://github.com/thangkes/Cmdex/releases). It installs for your user only (no administrator rights).
-- **Linux (x86-64):** download `Cmdex-Linux-amd64-<version>.tar.gz`, extract it and run `./install.sh` (installs to `~/.local/bin`, adds a menu entry). It needs WebKitGTK 4.1: `sudo apt install libwebkit2gtk-4.1-0` on Debian/Ubuntu.
+- **Linux (x86-64):** step by step below.
+
+#### Linux: install the released program
+
+The released program needs **WebKitGTK 4.1**: Ubuntu 22.04+, Debian 12+, Linux Mint 21+, Fedora, Arch, openSUSE, RHEL/Rocky/Alma 10. On RHEL/Rocky/Alma 9 or Ubuntu 20.04 (WebKitGTK 4.0 only), [build from source](#linux-build-from-source) instead.
+
+**1. Libraries** — the one command for your distribution:
+
+| Distribution | Command |
+|---|---|
+| Ubuntu, Debian, Linux Mint, Pop!_OS | `sudo apt install curl libwebkit2gtk-4.1-0` |
+| Fedora, RHEL / Rocky / Alma 10 | `sudo dnf install curl webkit2gtk4.1` |
+| Arch, Manjaro, EndeavourOS | `sudo pacman -S --needed curl webkit2gtk-4.1` |
+| openSUSE Tumbleweed, Leap 15.6 | `sudo zypper install curl libwebkit2gtk-4_1-0` |
+
+**2. Download, check, install** (no root; the program goes to `~/.local/bin`, with a menu entry):
+
+```bash
+VER=$(curl -fsSL https://api.github.com/repos/thangkes/Cmdex/releases/latest | sed -n 's/.*"tag_name": *"v\([^"]*\)".*/\1/p')
+mkdir -p ~/cmdex-setup && cd ~/cmdex-setup
+curl -fLO "https://github.com/thangkes/Cmdex/releases/download/v$VER/Cmdex-Linux-amd64-$VER.tar.gz"
+curl -fLO "https://github.com/thangkes/Cmdex/releases/download/v$VER/SHA256SUMS.txt"
+sha256sum -c --ignore-missing SHA256SUMS.txt
+tar -xzf "Cmdex-Linux-amd64-$VER.tar.gz"
+./install.sh
+```
+
+`sha256sum` must print `OK`; stop otherwise. `install.sh` then says which of the next steps your system still needs.
+
+**3. After installing**
+
+- Start Cmdex from the menu, or `cmdex` in a terminal. If the terminal says "command not found", add `~/.local/bin` to your PATH: `echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.profile`, then open a new terminal.
+- Serial consoles (Cisco console cable, USB-serial): `sudo usermod -aG dialout "$USER"` (Arch: `uucp` instead of `dialout`), then log out and in.
+- Remembering passwords needs a password keyring (Secret Service): GNOME Keyring is there on GNOME desktops (else install `gnome-keyring`); recent KDE Plasma's KWallet works too. Without one Cmdex works but asks for passwords each time.
+- Updates: Cmdex offers them itself; `cmdex --update` installs one at once.
+
+**Uninstall**
+
+```bash
+rm -f ~/.local/bin/cmdex ~/.local/share/applications/cmdex.desktop ~/.local/share/icons/hicolor/512x512/apps/cmdex.png
+rm -rf ~/.config/cmdex   # your library and settings: only if you want them gone too
+```
 
 ### Security
 
@@ -38,14 +79,72 @@
 
 ### Build from source
 
-Go 1.27+. On Linux also `libgtk-3-dev libwebkit2gtk-4.1-dev`.
+Windows (Go 1.27+; the installer needs Inno Setup 6):
 
 ```sh
 go test ./...
-# Windows (installer needs Inno Setup 6)
 ./scripts/build-windows.ps1
-# Linux
-go build -tags desktop,production,webkit2_41 -o cmdex .
+```
+
+<a id="linux-build-from-source"></a>
+#### Linux: build from source
+
+One script does every step below (it asks for `sudo` only to install the libraries):
+
+```bash
+git clone https://github.com/thangkes/Cmdex.git && cd Cmdex
+./scripts/build-linux.sh                 # --no-deps, --no-test, --no-install to skip steps
+```
+
+By hand, step by step:
+
+**1. Libraries.** Wails (the window) is built with cgo against GTK 3 and WebKitGTK, so it needs a C compiler, `pkg-config` and their development files:
+
+| Distribution | Command |
+|---|---|
+| Ubuntu 22.04+, Debian 12+, Mint 21+ | `sudo apt install build-essential pkg-config curl libgtk-3-dev libwebkit2gtk-4.1-dev` |
+| Ubuntu 20.04, Debian 11 | same, with `libwebkit2gtk-4.0-dev` |
+| Fedora, RHEL / Rocky / Alma 10 | `sudo dnf install gcc pkgconf-pkg-config curl tar gzip 'pkgconfig(gtk+-3.0)' 'pkgconfig(webkit2gtk-4.1)'` |
+| RHEL / Rocky / Alma 9 | `sudo dnf config-manager --set-enabled crb`, then the line above with `'pkgconfig(webkit2gtk-4.0)'` |
+| Arch, Manjaro, EndeavourOS | `sudo pacman -S --needed base-devel pkgconf curl gtk3 webkit2gtk-4.1` |
+| openSUSE Tumbleweed, Leap 15.6 | `sudo zypper install gcc pkg-config curl tar gzip 'pkgconfig(gtk+-3.0)' 'pkgconfig(webkit2gtk-4.1)'` |
+
+The other Go libraries need nothing from the system to build: SSH, Telnet, serial ports, terminals and SQLite are pure Go. At run time the password keyring and the `dialout` group matter (see "After installing" above).
+
+**2. Go**, the version in `go.mod` (distribution packages are often older), into your home folder, with its checksum checked:
+
+```bash
+GOV=$(sed -n 's/^go //p' go.mod)
+curl -fLO "https://dl.google.com/go/go$GOV.linux-amd64.tar.gz"
+echo "$(curl -fsSL "https://dl.google.com/go/go$GOV.linux-amd64.tar.gz.sha256")  go$GOV.linux-amd64.tar.gz" | sha256sum -c -
+mkdir -p ~/.local/go-$GOV && tar -C ~/.local/go-$GOV --strip-components=1 -xzf go$GOV.linux-amd64.tar.gz
+export PATH="$HOME/.local/go-$GOV/bin:$PATH" GOTOOLCHAIN=local
+go version
+```
+
+**3. Go modules**, downloaded and checked against `go.sum`:
+
+```bash
+go mod download
+go mod verify
+```
+
+**4. Test and build:**
+
+```bash
+go test ./...
+go build -tags desktop,production,webkit2_41 -trimpath -buildvcs=false \
+  -ldflags "-w -s -X github.com/thangkes/cmdex/internal/app.Version=$(cat VERSION)" -o dist/cmdex .
+```
+
+With WebKitGTK 4.0 (RHEL 9, Ubuntu 20.04): drop `,webkit2_41`, and add `-X github.com/thangkes/cmdex/internal/app.Updates=off` to the `-ldflags`. Released programs need 4.1, so such a build must not update itself; it updates by building again.
+
+**5. Install** (as the released program: `~/.local/bin` and a menu entry):
+
+```bash
+cp build/appicon.png dist/cmdex.png
+cp packaging/linux/cmdex.desktop packaging/linux/install.sh dist/
+sh dist/install.sh
 ```
 
 For interface work without the desktop shell: `CMDEX_DB=./tmp/cmdex.db go run ./tools/devserve`, then open http://127.0.0.1:34115.
@@ -82,7 +181,109 @@ License: [MIT](LICENSE).
 ### Cài đặt
 
 - **Windows 10/11:** tải `Cmdex-Windows-Setup-<phiên bản>.exe` ở [Releases](https://github.com/thangkes/Cmdex/releases). Cài cho riêng tài khoản của bạn, không cần quyền Administrator.
-- **Linux (x86-64):** tải `Cmdex-Linux-amd64-<phiên bản>.tar.gz`, giải nén rồi chạy `./install.sh` (cài vào `~/.local/bin` và thêm vào menu). Cần WebKitGTK 4.1: `sudo apt install libwebkit2gtk-4.1-0` trên Debian/Ubuntu.
+- **Linux (x86-64):** làm theo từng bước dưới đây.
+
+#### Linux: cài bản phát hành
+
+Bản phát hành cần **WebKitGTK 4.1**: Ubuntu 22.04+, Debian 12+, Linux Mint 21+, Fedora, Arch, openSUSE, RHEL/Rocky/Alma 10. Với RHEL/Rocky/Alma 9 hoặc Ubuntu 20.04 (chỉ có WebKitGTK 4.0), hãy [build từ mã nguồn](#linux-build-tu-ma-nguon).
+
+**1. Thư viện** — chạy đúng một lệnh theo distro của bạn:
+
+| Distro | Lệnh |
+|---|---|
+| Ubuntu, Debian, Linux Mint, Pop!_OS | `sudo apt install curl libwebkit2gtk-4.1-0` |
+| Fedora, RHEL / Rocky / Alma 10 | `sudo dnf install curl webkit2gtk4.1` |
+| Arch, Manjaro, EndeavourOS | `sudo pacman -S --needed curl webkit2gtk-4.1` |
+| openSUSE Tumbleweed, Leap 15.6 | `sudo zypper install curl libwebkit2gtk-4_1-0` |
+
+**2. Tải, kiểm tra, cài** (không cần root; chương trình nằm ở `~/.local/bin`, có thêm vào menu):
+
+```bash
+VER=$(curl -fsSL https://api.github.com/repos/thangkes/Cmdex/releases/latest | sed -n 's/.*"tag_name": *"v\([^"]*\)".*/\1/p')
+mkdir -p ~/cmdex-setup && cd ~/cmdex-setup
+curl -fLO "https://github.com/thangkes/Cmdex/releases/download/v$VER/Cmdex-Linux-amd64-$VER.tar.gz"
+curl -fLO "https://github.com/thangkes/Cmdex/releases/download/v$VER/SHA256SUMS.txt"
+sha256sum -c --ignore-missing SHA256SUMS.txt
+tar -xzf "Cmdex-Linux-amd64-$VER.tar.gz"
+./install.sh
+```
+
+`sha256sum` phải in ra `OK`; nếu không thì dừng lại. Sau đó `install.sh` sẽ báo máy bạn còn thiếu bước nào bên dưới.
+
+**3. Sau khi cài**
+
+- Mở Cmdex từ menu, hoặc gõ `cmdex` trong terminal. Nếu báo "command not found", thêm `~/.local/bin` vào PATH: `echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.profile`, rồi mở terminal mới.
+- Cổng COM (cáp console Cisco, USB-serial): `sudo usermod -aG dialout "$USER"` (Arch dùng `uucp` thay cho `dialout`), rồi đăng xuất và đăng nhập lại.
+- Ghi nhớ mật khẩu cần kho mật khẩu (Secret Service): desktop GNOME có sẵn GNOME Keyring (nếu không thì cài gói `gnome-keyring`); KWallet của KDE Plasma bản mới cũng dùng được. Không có thì Cmdex vẫn chạy, chỉ là phải nhập mật khẩu mỗi lần.
+- Cập nhật: Cmdex tự báo khi có bản mới; `cmdex --update` để cài ngay.
+
+**Gỡ cài đặt**
+
+```bash
+rm -f ~/.local/bin/cmdex ~/.local/share/applications/cmdex.desktop ~/.local/share/icons/hicolor/512x512/apps/cmdex.png
+rm -rf ~/.config/cmdex   # thư viện và cài đặt của bạn: chỉ xóa khi muốn bỏ luôn
+```
+
+<a id="linux-build-tu-ma-nguon"></a>
+#### Linux: build từ mã nguồn
+
+Một script làm hết các bước bên dưới (chỉ hỏi `sudo` khi cài thư viện):
+
+```bash
+git clone https://github.com/thangkes/Cmdex.git && cd Cmdex
+./scripts/build-linux.sh                 # --no-deps, --no-test, --no-install để bỏ bớt bước
+```
+
+Làm tay từng bước:
+
+**1. Thư viện.** Wails (phần cửa sổ) build bằng cgo với GTK 3 và WebKitGTK, nên cần trình biên dịch C, `pkg-config` và gói phát triển của chúng:
+
+| Distro | Lệnh |
+|---|---|
+| Ubuntu 22.04+, Debian 12+, Mint 21+ | `sudo apt install build-essential pkg-config curl libgtk-3-dev libwebkit2gtk-4.1-dev` |
+| Ubuntu 20.04, Debian 11 | như trên, thay bằng `libwebkit2gtk-4.0-dev` |
+| Fedora, RHEL / Rocky / Alma 10 | `sudo dnf install gcc pkgconf-pkg-config curl tar gzip 'pkgconfig(gtk+-3.0)' 'pkgconfig(webkit2gtk-4.1)'` |
+| RHEL / Rocky / Alma 9 | `sudo dnf config-manager --set-enabled crb`, rồi lệnh như trên với `'pkgconfig(webkit2gtk-4.0)'` |
+| Arch, Manjaro, EndeavourOS | `sudo pacman -S --needed base-devel pkgconf curl gtk3 webkit2gtk-4.1` |
+| openSUSE Tumbleweed, Leap 15.6 | `sudo zypper install gcc pkg-config curl tar gzip 'pkgconfig(gtk+-3.0)' 'pkgconfig(webkit2gtk-4.1)'` |
+
+Các thư viện Go còn lại không cần gì từ hệ thống khi build: SSH, Telnet, cổng COM, terminal và SQLite đều viết bằng Go thuần. Lúc chạy thì cần kho mật khẩu và nhóm `dialout` (xem "Sau khi cài" ở trên).
+
+**2. Go** đúng phiên bản ghi trong `go.mod` (gói Go của distro thường cũ hơn), cài vào thư mục home, có kiểm tra checksum:
+
+```bash
+GOV=$(sed -n 's/^go //p' go.mod)
+curl -fLO "https://dl.google.com/go/go$GOV.linux-amd64.tar.gz"
+echo "$(curl -fsSL "https://dl.google.com/go/go$GOV.linux-amd64.tar.gz.sha256")  go$GOV.linux-amd64.tar.gz" | sha256sum -c -
+mkdir -p ~/.local/go-$GOV && tar -C ~/.local/go-$GOV --strip-components=1 -xzf go$GOV.linux-amd64.tar.gz
+export PATH="$HOME/.local/go-$GOV/bin:$PATH" GOTOOLCHAIN=local
+go version
+```
+
+**3. Module Go**: tải về và đối chiếu với `go.sum`:
+
+```bash
+go mod download
+go mod verify
+```
+
+**4. Test và build:**
+
+```bash
+go test ./...
+go build -tags desktop,production,webkit2_41 -trimpath -buildvcs=false \
+  -ldflags "-w -s -X github.com/thangkes/cmdex/internal/app.Version=$(cat VERSION)" -o dist/cmdex .
+```
+
+Với WebKitGTK 4.0 (RHEL 9, Ubuntu 20.04): bỏ `,webkit2_41` và thêm `-X github.com/thangkes/cmdex/internal/app.Updates=off` vào `-ldflags`. Bản phát hành cần 4.1, nên bản build này không được tự cập nhật; muốn cập nhật thì build lại.
+
+**5. Cài** (giống bản phát hành: `~/.local/bin` và thêm vào menu):
+
+```bash
+cp build/appicon.png dist/cmdex.png
+cp packaging/linux/cmdex.desktop packaging/linux/install.sh dist/
+sh dist/install.sh
+```
 
 ### Bảo mật
 

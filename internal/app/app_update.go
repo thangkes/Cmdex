@@ -26,6 +26,9 @@ func (a *App) updateLoop() {
 
 // CheckUpdate returns a newer release, or nil.
 func (a *App) CheckUpdate() (*update.Release, error) {
+	if Updates == "off" {
+		return nil, nil
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	r, err := update.Check(ctx, http.DefaultClient, Version, update.Asset)

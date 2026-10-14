@@ -19,6 +19,12 @@ import (
 // never update themselves.
 var Version = "dev"
 
+// Updates is "off" in builds that a release must not replace: built from
+// source against WebKitGTK 4.0 (older Linux), which the released Linux
+// program (WebKitGTK 4.1) would not run on. They update by building again.
+// (-X github.com/thangkes/cmdex/internal/app.Updates=off)
+var Updates = "on"
+
 // App holds everything the interface calls. Its exported methods are bound
 // to the page (window.go.main.App.*); everything else is a package function
 // so it is not exposed.
