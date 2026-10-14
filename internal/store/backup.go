@@ -15,11 +15,17 @@ import (
 // BackupFormat names a full Cmdex backup file (docs/backup-format.md).
 const (
 	BackupFormat  = "cmdex-backup"
-	BackupVersion = 1
+	BackupVersion = 2
 )
 
-// Backup is everything in a library, to move it to another computer.
-// Passwords are not in it: they stay in the system keychain.
+// Backup is everything in the user's database, to move it to another
+// computer. The defaults are not in it (every Cmdex brings them); what the
+// user did to them is: copies they edited (Command.BaseKey), and the
+// defaults they deleted or ran (BaseState). Passwords are not in it either:
+// they stay in the system keychain.
+//
+// Version 1 (Cmdex 0.1) held the starter commands as the user's own; they
+// are matched to the defaults when imported.
 type Backup struct {
 	Format      string              `json:"format"`
 	Version     int                 `json:"version"`
@@ -32,6 +38,16 @@ type Backup struct {
 	Connections []Connection        `json:"connections"`
 	Collected   []BackupCollected   `json:"collected"`
 	Settings    map[string]string   `json:"settings"`
+	BaseState   []BaseState         `json:"baseState"`
+}
+
+// BaseState is what the user did to one default: Kind "command" (Key is
+// CommandKey) or "rule" (RuleKey); Uses counts runs, Hidden means deleted.
+type BaseState struct {
+	Kind   string `json:"kind"`
+	Key    string `json:"key"`
+	Uses   int    `json:"uses,omitempty"`
+	Hidden bool   `json:"hidden,omitempty"`
 }
 
 // BackupCollected is a collected group; Target names the library command it
@@ -74,15 +90,22 @@ func portableSetting(key string) bool {
 	return !strings.HasPrefix(key, "collect.offset.") && !strings.HasPrefix(key, "help.miss.")
 }
 
-// ExportBackup returns the whole library.
+// ExportBackup returns the user's database.
 func (s *Store) ExportBackup(app string) (Backup, error) {
 	b := Backup{Format: BackupFormat, Version: BackupVersion, Exported: time.Now().UTC().Format(time.RFC3339), App: app,
-		Explain: []Explain{}, Rules: []Rule{}, Collected: []BackupCollected{}, Settings: map[string]string{}}
+		Explain: []Explain{}, Rules: []Rule{}, Collected: []BackupCollected{}, Settings: map[string]string{}, BaseState: []BaseState{}}
 	var err error
-	if b.Commands, err = s.Commands(); err != nil {
+	if b.Commands, err = s.userCommands(); err != nil {
+		return b, err
+	}
+	all, err := s.Commands() // collected groups may point at defaults
+	if err != nil {
 		return b, err
 	}
 	byID := map[int64]Command{}
+	for _, c := range all {
+		byID[c.ID] = c
+	}
 	for _, c := range b.Commands {
 		byID[c.ID] = c
 	}
@@ -102,12 +125,22 @@ func (s *Store) ExportBackup(app string) (Backup, error) {
 			b.Explain = append(b.Explain, e)
 		}
 	}
-	if b.Synonyms, err = s.Synonyms(); err != nil {
+	if b.Synonyms, err = readSynonyms(s.db); err != nil {
 		return b, err
 	}
-	if b.Rules, err = s.Rules(); err != nil {
+	if b.Rules, err = readRules(s.db); err != nil {
 		return b, err
 	}
+	st, err := s.db.Query("SELECT kind, key, uses, hidden FROM base_state WHERE uses > 0 OR hidden = 1 ORDER BY kind, key")
+	if err != nil {
+		return b, err
+	}
+	for st.Next() {
+		var x BaseState
+		st.Scan(&x.Kind, &x.Key, &x.Uses, &x.Hidden)
+		b.BaseState = append(b.BaseState, x)
+	}
+	st.Close()
 	if b.Connections, err = s.Connections(); err != nil {
 		return b, err
 	}
@@ -188,6 +221,8 @@ func IsBackup(data []byte) bool {
 // ImportBackup loads a backup. With replace, the library is emptied first
 // (the read positions in this computer's history files are kept). Without
 // it the backup is merged in:
+//   - copies of the defaults that were never edited (version 1 backups and
+//     databases) are not added: only their run counts are kept;
 //   - a command already here (same platform and template) is replaced only
 //     by a copy edited more recently; its use count becomes the larger one;
 //   - an explanation the user wrote here is kept;
@@ -197,10 +232,19 @@ func IsBackup(data []byte) bool {
 //
 // Importing the same backup twice changes nothing the second time.
 func (s *Store) ImportBackup(b Backup, replace bool) (BackupResult, error) {
+	r, err := s.importBackup(b, replace)
+	if err != nil {
+		return r, err
+	}
+	return r, s.adopt()
+}
+
+func (s *Store) importBackup(b Backup, replace bool) (BackupResult, error) {
 	var r BackupResult
 	if b.Format != BackupFormat {
 		return r, errors.New("not a Cmdex backup")
 	}
+	idx, _ := s.defaultIndex()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	tx, err := s.db.Begin()
@@ -211,7 +255,7 @@ func (s *Store) ImportBackup(b Backup, replace bool) (BackupResult, error) {
 
 	if replace {
 		for _, q := range []string{"DELETE FROM variants", "DELETE FROM collected", "DELETE FROM commands", "DELETE FROM explain",
-			"DELETE FROM rules", "DELETE FROM synonyms", "DELETE FROM connections", "DELETE FROM settings WHERE key NOT LIKE 'collect.offset.%'"} {
+			"DELETE FROM rules", "DELETE FROM synonyms", "DELETE FROM connections", "DELETE FROM base_state", "DELETE FROM settings WHERE key NOT LIKE 'collect.offset.%'"} {
 			if _, err := tx.Exec(q); err != nil {
 				return r, err
 			}
@@ -248,14 +292,35 @@ func (s *Store) ImportBackup(b Backup, replace bool) (BackupResult, error) {
 		}
 		params, _ := json.Marshal(nonNilParams(c.Params))
 		ref := CommandRef{c.Platform, c.Template}
+		key := CommandKey(c.Platform, c.Template)
+		if idx.commands[c.BaseKey] == 0 {
+			c.BaseKey = "" // not a default (any more)
+		}
+		if c.BaseKey == "" && strings.HasPrefix(c.Source, "pack:") && c.Updated == c.Created && idx.commands[key] != 0 {
+			// a copy of a default made by Cmdex 0.1, never edited: the default is here
+			if _, err := tx.Exec(`INSERT INTO base_state(kind, key, uses) VALUES('command', ?, ?)
+				ON CONFLICT(kind, key) DO UPDATE SET uses = MAX(uses, excluded.uses)`, key, c.Uses); err != nil {
+				return r, err
+			}
+			ids[ref] = idx.commands[key]
+			r.Kept++
+			continue
+		}
 		var id, updated int64
 		var uses int
 		err := tx.QueryRow("SELECT id, updated, uses FROM commands WHERE platform = ? AND template = ?", c.Platform, c.Template).Scan(&id, &updated, &uses)
 		switch {
 		case errors.Is(err, sql.ErrNoRows):
-			res, err := tx.Exec(`INSERT INTO commands(name, platform, shell, category, template, purpose, notes, danger, tags, envs, params, uses, source, created, updated)
-				VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-				c.Name, c.Platform, c.Shell, c.Category, c.Template, c.Purpose, c.Notes, c.Danger, joinList(c.Tags), joinList(c.Envs), string(params), c.Uses, c.Source, c.Created, c.Updated)
+			if c.BaseKey != "" {
+				var n int
+				tx.QueryRow("SELECT COUNT(*) FROM commands WHERE base_key = ?", c.BaseKey).Scan(&n)
+				if n > 0 {
+					c.BaseKey = "" // this computer has its own copy of that default
+				}
+			}
+			res, err := tx.Exec(`INSERT INTO commands(name, platform, shell, category, template, purpose, notes, danger, tags, envs, params, uses, source, created, updated, base_key)
+				VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				c.Name, c.Platform, c.Shell, c.Category, c.Template, c.Purpose, c.Notes, c.Danger, joinList(c.Tags), joinList(c.Envs), string(params), c.Uses, c.Source, c.Created, c.Updated, c.BaseKey)
 			if err != nil {
 				return r, err
 			}
@@ -369,6 +434,8 @@ func (s *Store) ImportBackup(b Backup, replace bool) (BackupResult, error) {
 				var id int64
 				if tx.QueryRow("SELECT id FROM commands WHERE platform = ? AND template = ?", g.Target.Platform, g.Target.Template).Scan(&id) == nil {
 					target = id
+				} else if id := idx.commands[CommandKey(g.Target.Platform, g.Target.Template)]; id != 0 {
+					target = id
 				}
 			}
 		}
@@ -395,6 +462,17 @@ func (s *Store) ImportBackup(b Backup, replace bool) (BackupResult, error) {
 				gid, v.Raw, v.Count); err != nil {
 				return r, err
 			}
+		}
+	}
+
+	for _, x := range b.BaseState {
+		if x.Kind != "command" && x.Kind != "rule" {
+			continue
+		}
+		if _, err := tx.Exec(`INSERT INTO base_state(kind, key, uses, hidden) VALUES(?, ?, ?, ?)
+			ON CONFLICT(kind, key) DO UPDATE SET uses = MAX(uses, excluded.uses), hidden = MAX(hidden, excluded.hidden)`,
+			x.Kind, x.Key, x.Uses, x.Hidden); err != nil {
+			return r, err
 		}
 	}
 

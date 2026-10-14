@@ -1,10 +1,10 @@
-# Cmdex backup file (`cmdex-backup`, version 1)
+# Cmdex backup file (`cmdex-backup`, version 2)
 
 [English](#english) · [Tiếng Việt](#tiếng-việt)
 
 ## English
 
-A backup is one UTF-8 JSON file holding a whole library. Make one with **Library ▸ Export… ▸ Full backup** or `cmdex --export backup.json`; load it with **Library ▸ Import…** or `cmdex --import backup.json [--replace]`. You may also write or edit one by hand: every section except `format` and `version` may be left out or empty. A machine-readable description is in [`cmdex-backup.schema.json`](cmdex-backup.schema.json).
+A backup is one UTF-8 JSON file holding your database: everything you added, collected or changed. The starter commands that come with Cmdex are not in it (every Cmdex brings them, newer ones with each update); what you did to them is: your edited copies (`baseKey`) and the ones you deleted or ran (`baseState`). Make one with **Library ▸ Export… ▸ Full backup** or `cmdex --export backup.json`; load it with **Library ▸ Import…** or `cmdex --import backup.json [--replace]`. You may also write or edit one by hand: every section except `format` and `version` may be left out or empty. A machine-readable description is in [`cmdex-backup.schema.json`](cmdex-backup.schema.json).
 
 Not in a backup, on purpose:
 - **passwords and key passphrases**, which stay in the system keychain;
@@ -15,7 +15,7 @@ Collected command lines are stored with secrets already masked (`•••••
 ```jsonc
 {
   "format": "cmdex-backup",          // required, exactly this
-  "version": 1,                      // required
+  "version": 2,                      // required; 1 (Cmdex 0.1) is read too
   "exported": "2026-10-14T01:00:00Z",
   "app": "0.1.1",                    // Cmdex version that wrote it (informational)
 
@@ -34,7 +34,8 @@ Collected command lines are stored with secrets already masked (`•••••
     "uses": 12,                      // times run (ranks it higher)
     "source": "user",                // user | collected | pack:<name>
     "created": 1792000000,           // Unix seconds
-    "updated": 1792000000            // newer copy wins when merging
+    "updated": 1792000000,           // newer copy wins when merging
+    "baseKey": "windows ping {host} -n {count}"   // only on your copy of a starter command: "<platform> <template>" of the one it replaces
   }],
 
   "explain": [{
@@ -72,7 +73,13 @@ Collected command lines are stored with secrets already masked (`•••••
     "variants": [{"raw": "ping 10.0.0.1 -n 4", "count": 3}]
   }],
 
-  "settings": {"lang": "vi", "theme": "graphite", "collect.enabled": "1"}
+  "settings": {"lang": "vi", "theme": "graphite", "collect.enabled": "1"},
+
+  "baseState": [                     // what you did to starter commands and rules
+    {"kind": "command", "key": "linux ls -la {path}", "uses": 9},       // key: "<platform> <template>"
+    {"kind": "command", "key": "windows ipconfig /all", "hidden": true}, // deleted: stays deleted after updates
+    {"kind": "rule", "key": "category ssh, scp", "hidden": true}         // key: "<kind> <match>"
+  ]
 }
 ```
 
@@ -85,12 +92,15 @@ Collected command lines are stored with secrets already masked (`•••••
 | Rules, connections, collected groups | added if missing | the file's |
 | Collected run counts | the larger one | the file's |
 | Settings | taken from the file | taken from the file |
+| Starter commands deleted / run counts (`baseState`) | deleted on either side stays deleted; the larger count | the file's |
+
+Version 1 files (Cmdex 0.1) held the starter commands as your own: copies you never edited are matched to the starter commands (only their run counts are kept), edited ones become your copies.
 
 Importing the same file twice changes nothing the second time. A Cmdex database file (`.db`) can be imported the same way; it is read from a copy and never changed.
 
 ## Tiếng Việt
 
-File sao lưu là một file JSON (UTF-8) chứa toàn bộ thư viện.
+File sao lưu là một file JSON (UTF-8) chứa database của bạn: mọi thứ bạn thêm, thu thập hoặc sửa. Lệnh mẫu đi kèm Cmdex không nằm trong file (Cmdex nào cũng có sẵn, mỗi lần cập nhật lại mới hơn). Điều bạn đã làm với lệnh mẫu thì có: bản bạn đã sửa (`baseKey`), lệnh mẫu bạn đã xoá hoặc đã chạy (`baseState`).
 - **Tạo:** **Thư viện lệnh ▸ Xuất… ▸ Sao lưu đầy đủ**, hoặc `cmdex --export backup.json`.
 - **Nạp:** **Thư viện lệnh ▸ Nhập…**, hoặc `cmdex --import backup.json [--replace]`.
 - **Tự viết hoặc sửa bằng tay được:** ngoài `format` và `version`, mọi phần khác có thể bỏ trống. Cấu trúc chính xác nằm trong ví dụ ở phần tiếng Anh phía trên và trong [`cmdex-backup.schema.json`](cmdex-backup.schema.json).
@@ -108,5 +118,7 @@ Lệnh thu thập được lưu ở dạng đã che bí mật (`•••••�
   - Giải nghĩa bạn tự viết được giữ nguyên.
   - Nạp lại cùng một file lần nữa không thay đổi gì.
 - **Thay thế toàn bộ:** xóa sạch thư viện hiện tại rồi nạp file.
+
+File phiên bản 1 (Cmdex 0.1) chứa lệnh mẫu như lệnh của bạn: lệnh mẫu chưa sửa được ghép với lệnh mẫu có sẵn (chỉ giữ số lần dùng), lệnh đã sửa thành bản của bạn.
 
 File database `.db` cũng nạp được theo cùng cách. Cmdex đọc từ một bản chép nên file gốc không bị thay đổi.

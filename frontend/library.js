@@ -71,7 +71,7 @@ function editor(c0) {
   const area = key => { const el = h("textarea", { rows: 3 }); el.value = c[key] || ""; el.oninput = () => { c[key] = el.value; }; return el; };
   const select = (key, opts) => { const el = h("select", {}, opts.map(([v, l]) => h("option", { value: v, selected: String(c[key]) === String(v) }, l))); el.onchange = () => { c[key] = typeof c[key] === "number" ? Number(el.value) : el.value; }; return el; };
 
-  box.appendChild(h("div", { class: "row between wrap" }, h("h2", {}, c.id ? t("lib.edit") : t("lib.new")), c.source && c.source.startsWith("pack:") ? h("span", { class: "muted" }, t("lib.fromPack", { p: c.source.slice(5) })) : null));
+  box.appendChild(h("div", { class: "row between wrap" }, h("h2", {}, c.id ? t("lib.edit") : t("lib.new")), originNote(c)));
   const tpl = text("template", { class: "mono" });
   const paramsBox = h("div", {});
   const drawParams = () => {
@@ -217,8 +217,17 @@ async function exportMenu() {
 
 async function reimport() {
   if (!await confirmDialog(t("lib.reimport"), t("lib.reimportQ"), t("lib.reimport"))) return;
-  try { const r = await api.ReimportStarter(); setStatus(t("lib.imported", { a: r.added, s: r.skipped })); renderLibrary(); }
+  try { const r = await api.ReimportStarter(); setStatus(t("lib.restored", { n: r.added })); renderLibrary(); }
   catch (e) { setStatus(errText(e), true); }
+}
+
+// originNote says where a command comes from: a default shipped with Cmdex
+// (updated with it; saving makes it the user's), or the user's copy of one.
+function originNote(c) {
+  const pack = c.source && c.source.startsWith("pack:") ? c.source.slice(5) : "";
+  if (c.base) return h("span", { class: "muted", title: t("lib.defaultHint") }, t("lib.isDefault", { p: pack }));
+  if (c.baseKey) return h("span", { class: "muted", title: t("lib.editedHint") }, t("lib.editedDefault", { p: pack }));
+  return pack ? h("span", { class: "muted" }, t("lib.fromPack", { p: pack })) : null;
 }
 
 async function refreshCount() {

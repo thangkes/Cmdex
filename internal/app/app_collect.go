@@ -13,6 +13,11 @@ import (
 // collectLoop reads new shell history every minute while collecting is on.
 func (a *App) collectLoop() {
 	time.Sleep(5 * time.Second)
+	if a.store.Setting("collect.enabled", "1") == "1" {
+		if n, _ := a.coll.Backfill(a.sourceEnabled); n > 0 {
+			a.emit("collect:new", n)
+		}
+	}
 	for {
 		if a.store.Setting("collect.enabled", "1") == "1" {
 			if n, _ := a.ScanNow(); n > 0 {
@@ -25,8 +30,10 @@ func (a *App) collectLoop() {
 
 // ScanNow reads the enabled history files at once.
 func (a *App) ScanNow() (int, error) {
-	return a.coll.Scan(func(id string) bool { return a.store.Setting("collect.src."+id, "1") == "1" })
+	return a.coll.Scan(a.sourceEnabled)
 }
+
+func (a *App) sourceEnabled(id string) bool { return a.store.Setting("collect.src."+id, "1") == "1" }
 
 // CollectSource is a history file with its switch.
 type CollectSource struct {

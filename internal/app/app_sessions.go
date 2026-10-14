@@ -245,7 +245,7 @@ func (a *App) Run(id, line string, commandID int64) error {
 	if _, err := s.conn.Write([]byte(line + "\r")); err != nil {
 		return err
 	}
-	if commandID > 0 {
+	if commandID != 0 { // negative: a default
 		a.store.AddUses(commandID, 1)
 	}
 	if a.coll != nil && a.store.Setting("collect.session", "1") == "1" {

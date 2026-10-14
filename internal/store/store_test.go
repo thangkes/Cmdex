@@ -126,64 +126,6 @@ func TestFillAndKeys(t *testing.T) {
 	}
 }
 
-func TestLocalizePackKeepsUserEdits(t *testing.T) {
-	s := open(t)
-	p, _ := ParsePack([]byte(packJSON))
-	s.ImportPack(p, "en")
-	cmds, _ := s.Commands()
-	var ping, ls Command
-	for _, c := range cmds {
-		if c.Platform == Windows {
-			ping = c
-		} else {
-			ls = c
-		}
-	}
-	if ping.Name != "Ping a host" {
-		t.Fatalf("%q", ping.Name)
-	}
-	// the user edits one command (a second later, as in real use)
-	ls.Name = "My listing"
-	s.SaveCommand(ls)
-	s.db.Exec("UPDATE commands SET updated = updated + 1 WHERE id = ?", ls.ID)
-
-	n, err := s.LocalizePack(p, "vi")
-	if err != nil || n != 1 {
-		t.Fatalf("%d %v", n, err)
-	}
-	got, _ := s.Command(ping.ID)
-	if got.Name != "Ping máy" || got.Params[0].Description != "Địa chỉ máy" {
-		t.Fatalf("not localized: %+v", got)
-	}
-	if got, _ := s.Command(ls.ID); got.Name != "My listing" {
-		t.Fatalf("user edit overwritten: %q", got.Name)
-	}
-	if e, _ := s.Explain("ping"); e.Summary != "Gửi gói ICMP" {
-		t.Fatalf("explain: %q", e.Summary)
-	}
-	// and back
-	s.LocalizePack(p, "en")
-	if got, _ := s.Command(ping.ID); got.Name != "Ping a host" {
-		t.Fatalf("back to en: %q", got.Name)
-	}
-}
-
-func TestRuleGroupNamesFollowLanguage(t *testing.T) {
-	s := open(t)
-	p, _ := ParsePack([]byte(`{"name":"r","commands":[{"name":"x","platform":"linux","template":"x"}],"rules":[{"kind":"category","match":"ping","result":{"en":"Network","vi":"Mạng"}}]}`))
-	s.ImportPack(p, "en")
-	s.LocalizePack(p, "vi")
-	rules, _ := s.Rules()
-	if rules[0].Result != "Mạng" {
-		t.Fatalf("%+v", rules)
-	}
-	s.SaveRule(Rule{ID: rules[0].ID, Kind: "category", Match: "ping", Result: "Net stuff"})
-	s.LocalizePack(p, "en")
-	if r, _ := s.Rules(); r[0].Result != "Net stuff" {
-		t.Fatalf("user's group name overwritten: %+v", r)
-	}
-}
-
 // A database file from elsewhere must not run functions through triggers
 // or views it defines.
 func TestUntrustedSchema(t *testing.T) {

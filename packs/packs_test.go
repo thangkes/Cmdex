@@ -10,8 +10,8 @@ import (
 	"github.com/thangkes/cmdex/internal/store"
 )
 
-// The starter packs must parse, import cleanly in both languages, have no
-// duplicate templates, describe every parameter, and make the examples in
+// The starter packs must parse, build the defaults cleanly in both
+// languages, have no duplicate templates, describe every parameter, and make the examples in
 // the README work.
 func TestStarterPacks(t *testing.T) {
 	all := All()
@@ -46,18 +46,20 @@ func TestStarterPacks(t *testing.T) {
 					}
 				}
 			}
-			r, err := s.ImportPack(p, lang)
-			if err != nil {
-				t.Fatalf("%s: %v", p.Name, err)
-			}
-			if r.Skipped != 0 {
-				t.Errorf("%s: %d duplicate templates", p.Name, r.Skipped)
-			}
-			total += r.Added
+			total += len(p.Commands)
+		}
+		// the packs are read as the defaults database, as in the app
+		if err := s.UseDefaults(all, lang); err != nil {
+			t.Fatal(err)
 		}
 		cmds, _ := s.Commands()
-		if len(cmds) != total || total < 90 {
-			t.Fatalf("%s: %d commands imported, %d in library", lang, total, len(cmds))
+		if len(cmds) != total || total < 90 { // fewer: duplicate templates, or refused ones
+			t.Fatalf("%s: %d commands in the packs, %d in the library", lang, total, len(cmds))
+		}
+		for _, c := range cmds {
+			if !c.Base || c.ID >= 0 {
+				t.Fatalf("not a default: %+v", c)
+			}
 		}
 
 		syn, _ := s.Synonyms()

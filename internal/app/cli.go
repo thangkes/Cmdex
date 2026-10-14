@@ -12,6 +12,7 @@ import (
 
 	"github.com/thangkes/cmdex/internal/store"
 	"github.com/thangkes/cmdex/internal/update"
+	"github.com/thangkes/cmdex/packs"
 )
 
 // CLI handles command-line use; it reports whether args were for it and
@@ -56,8 +57,8 @@ func transferCLI(out io.Writer, op, file string, replace bool) int {
 		if s, err = store.Open(path); err == nil {
 			defer s.Close()
 			a := &App{store: s}
-			if s.Setting("packs.imported", "") == "" {
-				a.importStarter() // a library opened for the first time starts like in the app
+			if err := s.UseDefaults(packs.All(), a.lang()); err != nil { // as in the app
+				fmt.Fprintln(out, "defaults:", err)
 			}
 			switch op {
 			case "--export":

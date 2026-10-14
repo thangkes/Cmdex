@@ -84,10 +84,8 @@ func (c *Collector) add(raw, source string, r rules) bool {
 	if !ok || r.ignore[l.Program] {
 		return false
 	}
-	// a line that is only a program name ("cls", "exit") teaches nothing
-	if !strings.Contains(l.Signature, " ") && !strings.Contains(l.Signature, "{") {
-		return false
-	}
+	// every command is kept, "cd {path}" and a lone "cls" too: for someone
+	// new to the terminal those are the first ones worth finding again
 	return c.Store.AddCollected(l.Signature, r.category[l.Program], source, l.Secret, l.Raw) == nil
 }
 
@@ -230,9 +228,57 @@ func firstProgram(tpl string) string {
 	return ""
 }
 
-// scrubVersion is raised whenever secret masking learns new patterns, so
-// lines collected by an older Cmdex are cleaned again once.
-const scrubVersion = "2"
+// scrubVersion is raised whenever secret masking learns new patterns, or
+// templates are made differently, so lines collected by an older Cmdex are
+// cleaned and regrouped again once. 3: places given to cd, dir, ls… are {path}.
+const scrubVersion = "3"
+
+// Backfill reads again, from their start, the parts of the history files
+// that Cmdex 0.1 already scanned, for the lines it skipped then: lone
+// programs ("ls", "cls") and the programs its starter rules ignored (cd,
+// dir, pwd…). Lines it collected back then are not counted twice. It runs
+// once.
+func (c *Collector) Backfill(enabled func(id string) bool) (int, error) {
+	return c.backfill(Sources(), enabled)
+}
+
+func (c *Collector) backfill(sources []Source, enabled func(id string) bool) (int, error) {
+	if c.Store.Setting("collect.backfill", "") == "1" {
+		return 0, nil
+	}
+	r := c.rules()
+	added := 0
+	for _, src := range sources {
+		if !enabled(src.ID) {
+			continue
+		}
+		off, _ := strconv.ParseInt(c.Store.Setting("collect.offset."+src.Path, "0"), 10, 64)
+		if off <= 0 {
+			continue // never scanned: the next scan reads all of it
+		}
+		f, err := os.Open(src.Path)
+		if err != nil {
+			continue
+		}
+		lines, _ := readLines(io.LimitReader(f, off), src.ID)
+		f.Close()
+		for _, raw := range lines {
+			if l, ok := Normalize(raw, r.secret); ok && skippedBefore(l) && c.add(raw, src.ID, r) {
+				added++
+			}
+		}
+	}
+	return added, c.Store.SetSetting("collect.backfill", "1")
+}
+
+// oldIgnored is what the starter rules of Cmdex 0.1 never collected.
+var oldIgnored = map[string]bool{"cd": true, "ls": true, "dir": true, "cls": true, "clear": true, "exit": true, "pwd": true,
+	"history": true, "whoami": true, "logout": true, "ll": true, "la": true}
+
+// skippedBefore reports whether Cmdex 0.1 left a line out.
+func skippedBefore(l Line) bool {
+	return oldIgnored[l.Program] || (!strings.Contains(l.Signature, " ") && !strings.Contains(l.Signature, "{"))
+}
 
 // Rescrub masks, with today's rules, secrets in lines collected by an older
 // version, and regroups them. It runs once per scrubVersion.

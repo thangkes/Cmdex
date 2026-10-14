@@ -5,7 +5,6 @@ import (
 	"os"
 	"runtime"
 	"sync"
-	"time"
 
 	wr "github.com/wailsapp/wails/v2/pkg/runtime"
 
@@ -63,11 +62,11 @@ func (a *App) startup(ctx context.Context) {
 		a.dbErr = err.Error()
 		return
 	}
+	if err := a.store.UseDefaults(packs.All(), a.lang()); err != nil {
+		a.dbErr = err.Error() // the user's own library still works
+	}
 	a.coll = &collect.Collector{Store: a.store}
 	a.coll.Rescrub() // secrets missed by an older Cmdex are masked once
-	if a.store.Setting("packs.imported", "") == "" {
-		a.importStarter()
-	}
 	go a.collectLoop()
 	go a.updateLoop()
 	go cleanDownloads()
@@ -86,23 +85,6 @@ func (a *App) shutdown(context.Context) {
 
 func (a *App) lang() string { return a.store.Setting("lang", systemLang()) }
 
-// importStarter loads the starter packs shipped with Cmdex (Windows and
-// Linux commands, explanations, synonyms, rules) into the user's database.
-func (a *App) importStarter() (store.ImportResult, error) {
-	var total store.ImportResult
-	for _, p := range packs.All() {
-		r, err := a.store.ImportPack(p, a.lang())
-		if err != nil {
-			return total, err
-		}
-		total.Added += r.Added
-		total.Skipped += r.Skipped
-		total.Explains += r.Explains
-	}
-	a.store.SetSetting("packs.imported", time.Now().Format(time.RFC3339))
-	return total, nil
-}
-
 // Info is what the page needs at start.
 type Info struct {
 	Version  string `json:"version"`
@@ -110,6 +92,7 @@ type Info struct {
 	Lang     string `json:"lang"`
 	Theme    string `json:"theme"`
 	DBPath   string `json:"dbPath"`
+	Defaults string `json:"defaults"` // the defaults database
 	DBError  string `json:"dbError"`
 	Shell    string `json:"shell"`
 	Hostname string `json:"hostname"`
@@ -125,24 +108,21 @@ func (a *App) Init() Info {
 		return info
 	}
 	info.Lang = a.lang()
+	info.Defaults = a.store.DefaultsPath()
 	info.Theme = a.store.Setting("theme", "graphite")
 	info.Shell = shellLabel()
 	return info
 }
 
 // SetSetting stores an interface preference (lang, theme, collect.*).
-// Changing the language also rewrites, in that language, the starter
-// commands the user never edited.
+// Changing the language rebuilds the defaults in that language (commands
+// the user changed stay as they are).
 func (a *App) SetSetting(key, value string) error {
 	if err := a.store.SetSetting(key, value); err != nil {
 		return err
 	}
 	if key == "lang" {
-		for _, p := range packs.All() {
-			if _, err := a.store.LocalizePack(p, value); err != nil {
-				return err
-			}
-		}
+		return a.store.UseDefaults(packs.All(), value)
 	}
 	return nil
 }

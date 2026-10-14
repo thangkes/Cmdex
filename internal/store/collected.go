@@ -117,7 +117,7 @@ func (s *Store) SetCollectedStatus(id int64, status string, target int64) error 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var tgt any
-	if target > 0 {
+	if target != 0 { // negative: a default
 		tgt = target
 	}
 	_, err := s.db.Exec("UPDATE collected SET status = ?, target = ? WHERE id = ?", status, tgt, id)

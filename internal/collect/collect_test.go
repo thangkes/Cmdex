@@ -3,6 +3,7 @@ package collect
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -105,7 +106,8 @@ func TestScanReadsOnlyNewLines(t *testing.T) {
 		c.Add(l, "test")
 	}
 	list, _ := s.CollectedList("")
-	if len(list) != 1 || list[0].Total != 2 || list[0].Category != "Network" {
+	// cd and ls are ignored by the user's rule here; a lone "cls" is kept
+	if len(list) != 2 || list[0].Total != 2 || list[0].Category != "Network" || list[1].Signature != "cls" {
 		t.Fatalf("%+v", list)
 	}
 
@@ -208,5 +210,69 @@ func TestRescrubOldData(t *testing.T) {
 	}
 	if n, _ := c.Rescrub(); n != 0 {
 		t.Fatal("ran twice")
+	}
+}
+
+// Places given to cd, dir, ls… become {path}; the moves every newcomer
+// learns (.., -, ~) stay as they are.
+func TestLocationTemplates(t *testing.T) {
+	cases := map[string]string{
+		`cd Desktop`:                  "cd {path}",
+		`cd "C:\Program Files\Cmdex"`: "cd {path}",
+		`cd C:\Program Files\My App`:  "cd {path}",
+		`dir C:\a D:\b`:               "dir {path} {path2}",
+		`cd /d D:\Work`:               "cd /d {path}",
+		`cd ..`:                       "cd ..",
+		`cd -`:                        "cd -",
+		`cd ~`:                        "cd ~",
+		`cd`:                          "cd",
+		`ls -la Documents`:            "ls -la {path}",
+		`ls *.log`:                    "ls {path}",
+		`dir Downloads /s`:            "dir {path} /s",
+		`Get-ChildItem -Path C:\Logs -Filter *.log`: "get-childitem -Path {path} -Filter {filter}",
+		`gci src -Recurse -Depth 2`:                 "gci {path} -Recurse -Depth {depth}",
+		`tree -L 2 projects`:                        "tree -L {l} {path}",
+		`Set-Location Projects; dir`:                "set-location {path} ; dir",
+		`cd app && npm install express`:             "cd {path} && npm install express",
+	}
+	for in, want := range cases {
+		l, ok := Normalize(in, nil)
+		if !ok || l.Signature != want {
+			t.Errorf("%s\n got %s\nwant %s", in, l.Signature, want)
+		}
+	}
+}
+
+// Lines Cmdex 0.1 skipped in already-read history are collected once, and
+// what it collected then is not counted again.
+func TestBackfill(t *testing.T) {
+	dir := t.TempDir()
+	s, err := store.Open(filepath.Join(dir, "c.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	c := &Collector{Store: s}
+	hist := filepath.Join(dir, "h.txt")
+	read := "cd Desktop\nping 1.1.1.1 -n 4\nls\ncd ..\n"
+	os.WriteFile(hist, []byte(read+"cd Music\n"), 0o600) // the last line was not read yet
+	c.Add("ping 1.1.1.1 -n 4", "bash")                   // collected by 0.1
+	s.SetSetting("collect.offset."+hist, strconv.Itoa(len(read)))
+
+	all := func(string) bool { return true }
+	n, err := c.backfill([]Source{{ID: "bash", Path: hist}}, all)
+	if err != nil || n != 3 {
+		t.Fatalf("%d %v", n, err)
+	}
+	if n, _ := c.backfill([]Source{{ID: "bash", Path: hist}}, all); n != 0 {
+		t.Fatal("ran twice")
+	}
+	list, _ := s.CollectedList("")
+	got := map[string]int{}
+	for _, g := range list {
+		got[g.Signature] = g.Total
+	}
+	if len(got) != 4 || got["ping {host} -n {count}"] != 1 || got["cd {path}"] != 1 || got["ls"] != 1 || got["cd .."] != 1 {
+		t.Fatalf("%+v", got)
 	}
 }

@@ -2,8 +2,10 @@ package store
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/json"
 	"errors"
+	"sort"
 	"strings"
 )
 
@@ -134,9 +136,41 @@ func ParsePack(b []byte) (Pack, error) {
 	return p, nil
 }
 
-// ImportPack adds a pack's content in language lang. Commands already in the
-// library (same platform and template) are left as they are, and so are
-// explanations the user wrote or edited.
+// packCommand is a pack's command in language lang.
+func packCommand(pc PackCommand, lang, source string) Command {
+	c := Command{
+		Name: pc.Name.In(lang), Platform: normPlatform(pc.Platform), Shell: pc.Shell, Category: pc.Category.In(lang),
+		Template: strings.TrimSpace(pc.Template), Purpose: pc.Purpose.In(lang), Notes: pc.Notes.In(lang), Danger: pc.Danger,
+		Tags: pc.Tags, Source: source, Params: []Param{},
+	}
+	for _, pp := range pc.Params {
+		c.Params = append(c.Params, Param{Key: pp.Key, Type: pp.Type, Default: pp.Default, Description: pp.Description.In(lang), Required: pp.Required})
+	}
+	if len(c.Params) == 0 {
+		c.Params = ParamsFromTemplate(c.Template)
+	}
+	return c
+}
+
+// packExplain is a pack's explanation in language lang.
+func packExplain(pe PackExplain, lang, source string) Explain {
+	e := Explain{Cmd: pe.Cmd, Summary: pe.Summary.In(lang), Flags: map[string]Flag{}, Letters: map[string]string{}, Args: []string{}, Source: source}
+	for k, f := range pe.Flags {
+		e.Flags[k] = Flag{Text: f.Text.In(lang), Value: f.Value}
+	}
+	for k, v := range pe.Letters {
+		e.Letters[k] = v.In(lang)
+	}
+	for _, a := range pe.Args {
+		e.Args = append(e.Args, a.In(lang))
+	}
+	return e
+}
+
+// ImportPack adds a pack's content in language lang to the user's database.
+// Commands already in the library (same platform and template, the
+// defaults included) are left as they are, and so are explanations the
+// user wrote or edited.
 func (s *Store) ImportPack(p Pack, lang string) (ImportResult, error) {
 	var r ImportResult
 	source := "user"
@@ -144,18 +178,7 @@ func (s *Store) ImportPack(p Pack, lang string) (ImportResult, error) {
 		source = "pack:" + p.Name
 	}
 	for _, pc := range p.Commands {
-		c := Command{
-			Name: pc.Name.In(lang), Platform: pc.Platform, Shell: pc.Shell, Category: pc.Category.In(lang),
-			Template: pc.Template, Purpose: pc.Purpose.In(lang), Notes: pc.Notes.In(lang), Danger: pc.Danger,
-			Tags: pc.Tags, Source: source, Params: []Param{},
-		}
-		for _, pp := range pc.Params {
-			c.Params = append(c.Params, Param{Key: pp.Key, Type: pp.Type, Default: pp.Default, Description: pp.Description.In(lang), Required: pp.Required})
-		}
-		if len(c.Params) == 0 {
-			c.Params = ParamsFromTemplate(c.Template)
-		}
-		_, err := s.SaveCommand(c)
+		_, err := s.SaveCommand(packCommand(pc, lang, source))
 		switch {
 		case errors.Is(err, ErrDuplicate):
 			r.Skipped++
@@ -171,17 +194,7 @@ func (s *Store) ImportPack(p Pack, lang string) (ImportResult, error) {
 		if old, ok := s.Explain(pe.Cmd); ok && !strings.HasPrefix(old.Source, "pack:") {
 			continue // the user's own explanation wins
 		}
-		e := Explain{Cmd: pe.Cmd, Summary: pe.Summary.In(lang), Flags: map[string]Flag{}, Letters: map[string]string{}, Source: source}
-		for k, f := range pe.Flags {
-			e.Flags[k] = Flag{Text: f.Text.In(lang), Value: f.Value}
-		}
-		for k, v := range pe.Letters {
-			e.Letters[k] = v.In(lang)
-		}
-		for _, a := range pe.Args {
-			e.Args = append(e.Args, a.In(lang))
-		}
-		if err := s.SaveExplain(e); err != nil {
+		if err := s.SaveExplain(packExplain(pe, lang, source)); err != nil {
 			return r, err
 		}
 		r.Explains++
@@ -226,7 +239,7 @@ func (s *Store) ImportPack(p Pack, lang string) (ImportResult, error) {
 }
 
 // ExportPack writes the whole library (commands, explanations, synonyms,
-// rules) as a pack another computer can import.
+// rules; the defaults included) as a pack another computer can import.
 func (s *Store) ExportPack() (Pack, error) {
 	p := Pack{Name: "export", Version: 1}
 	cmds, err := s.Commands()
@@ -241,17 +254,10 @@ func (s *Store) ExportPack() (Pack, error) {
 		}
 		p.Commands = append(p.Commands, pc)
 	}
-	rows, err := s.db.Query("SELECT cmd FROM explain ORDER BY cmd")
+	names, err := s.explainNames()
 	if err != nil {
 		return p, err
 	}
-	var names []string
-	for rows.Next() {
-		var n string
-		rows.Scan(&n)
-		names = append(names, n)
-	}
-	rows.Close()
 	for _, n := range names {
 		e, _ := s.Explain(n)
 		pe := PackExplain{Cmd: e.Cmd, Summary: Text{"": e.Summary}, Flags: map[string]PackFlag{}, Letters: map[string]Text{}}
@@ -277,72 +283,6 @@ func (s *Store) ExportPack() (Pack, error) {
 		p.Rules = append(p.Rules, PackRule{Kind: r.Kind, Match: r.Match, Result: Text{"": r.Result}})
 	}
 	return p, nil
-}
-
-// LocalizePack rewrites, in language lang, the commands of the pack that the
-// user never edited, the pack's explanations and the group names of its
-// rules. Whatever the user changed stays as it is. It returns how many
-// commands changed.
-func (s *Store) LocalizePack(p Pack, lang string) (int, error) {
-	if p.Name == "" {
-		return 0, nil
-	}
-	source := "pack:" + p.Name
-	n := 0
-	for _, pc := range p.Commands {
-		params := []Param{}
-		for _, pp := range pc.Params {
-			params = append(params, Param{Key: pp.Key, Type: pp.Type, Default: pp.Default, Description: pp.Description.In(lang), Required: pp.Required})
-		}
-		if len(params) == 0 {
-			params = ParamsFromTemplate(pc.Template)
-		}
-		pj, _ := json.Marshal(params)
-		s.mu.Lock()
-		res, err := s.db.Exec(`UPDATE commands SET name = ?, category = ?, purpose = ?, notes = ?, params = ?
-			WHERE platform = ? AND template = ? AND source = ? AND updated = created`,
-			pc.Name.In(lang), pc.Category.In(lang), pc.Purpose.In(lang), pc.Notes.In(lang), string(pj), pc.Platform, pc.Template, source)
-		s.mu.Unlock()
-		if err != nil {
-			return n, err
-		}
-		if k, _ := res.RowsAffected(); k > 0 {
-			n++
-		}
-	}
-	for _, pe := range p.Explain {
-		if old, ok := s.Explain(pe.Cmd); ok && old.Source != source {
-			continue
-		}
-		e := Explain{Cmd: pe.Cmd, Summary: pe.Summary.In(lang), Flags: map[string]Flag{}, Letters: map[string]string{}, Source: source}
-		for k, f := range pe.Flags {
-			e.Flags[k] = Flag{Text: f.Text.In(lang), Value: f.Value}
-		}
-		for k, v := range pe.Letters {
-			e.Letters[k] = v.In(lang)
-		}
-		for _, a := range pe.Args {
-			e.Args = append(e.Args, a.In(lang))
-		}
-		if err := s.SaveExplain(e); err != nil {
-			return n, err
-		}
-	}
-	for _, pr := range p.Rules {
-		if len(pr.Result) == 0 {
-			continue
-		}
-		words, _ := json.Marshal(textValues(pr.Result))
-		s.mu.Lock()
-		// only a group name that is still one of the pack's own wordings
-		_, err := s.db.Exec("UPDATE rules SET result = ? WHERE kind = ? AND match = ? AND result IN (SELECT value FROM json_each(?))",
-			pr.Result.In(lang), pr.Kind, pr.Match, string(words))
-		s.mu.Unlock()
-		if err != nil {
-			return n, err
-		}
-	}
-	return n, nil
 }
 
 func textValues(t Text) []string {
@@ -422,4 +362,38 @@ func Fill(tpl string, values map[string]string) string {
 		b.WriteByte(tpl[i])
 	}
 	return b.String()
+}
+
+// explainNames lists the programs explained in either database.
+func (s *Store) explainNames() ([]string, error) {
+	seen := map[string]bool{}
+	var out []string
+	add := func(db *sql.DB) error {
+		rows, err := db.Query("SELECT cmd FROM explain")
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var n string
+			rows.Scan(&n)
+			if !seen[n] {
+				seen[n] = true
+				out = append(out, n)
+			}
+		}
+		return rows.Err()
+	}
+	if err := add(s.db); err != nil {
+		return nil, err
+	}
+	s.baseMu.RLock()
+	defer s.baseMu.RUnlock()
+	if s.base != nil {
+		if err := add(s.base); err != nil {
+			return nil, err
+		}
+	}
+	sort.Strings(out)
+	return out, nil
 }

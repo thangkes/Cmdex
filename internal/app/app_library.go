@@ -135,9 +135,12 @@ func (a *App) SaveExplain(e store.Explain) error {
 	return a.store.SaveExplain(e)
 }
 
-// ReimportStarter adds starter-pack commands that are not in the library
-// (deleted ones come back; edited ones are left alone).
-func (a *App) ReimportStarter() (store.ImportResult, error) { return a.importStarter() }
+// ReimportStarter brings back the default commands the user deleted
+// (edited ones are left alone).
+func (a *App) ReimportStarter() (store.ImportResult, error) {
+	n, err := a.store.RestoreDefaults()
+	return store.ImportResult{Added: n}, err
+}
 
 // ImportFile asks for a pack file and imports it.
 func (a *App) ImportFile() (store.ImportResult, error) {

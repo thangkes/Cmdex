@@ -1,6 +1,8 @@
-// Package packs holds the starter packs imported into a new library: common
+// Package packs holds the starter packs built into the program: common
 // Windows and Linux commands with explanations, search synonyms and
-// collection rules. Users may change or delete everything they bring.
+// collection rules. They make the defaults database (store.UseDefaults),
+// which every update rebuilds; users may change or delete everything they
+// bring, and their changes live in their own database.
 package packs
 
 import (

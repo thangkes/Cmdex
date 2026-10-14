@@ -29,7 +29,9 @@ async function setLang(lang) {
   document.querySelectorAll("#langSeg button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.lang === lang)));
   document.getElementById("langSeg").setAttribute("aria-label", t("lang.label"));
   document.getElementById("q").placeholder = t("ask.placeholder");
-  document.getElementById("dbPath").textContent = t("status.db", { p: App.info.dbPath });
+  const db = document.getElementById("dbPath");
+  db.textContent = t("status.db", { p: App.info.dbPath });
+  db.title = App.info.defaults ? t("status.defaults", { p: App.info.defaults }) : "";
   setTheme(App.theme); // theme names are translated
   refreshProtection();
   relabelWork();
@@ -63,7 +65,7 @@ async function start() {
   document.getElementById("ver").textContent = App.info.version === "dev" ? "dev" : "v" + App.info.version;
   document.getElementById("env").textContent = `${App.info.hostname} · ${App.info.os === "windows" ? "Windows" : "Linux"}`;
   document.querySelectorAll(".nav button").forEach(b => b.addEventListener("click", () => showView(b.dataset.view)));
-  document.querySelectorAll("#langSeg button").forEach(b => b.addEventListener("click", async () => { await api.SetSetting("lang", b.dataset.lang).catch(e => setStatus(errText(e), true)); setLang(b.dataset.lang); }));
+  document.querySelectorAll("#langSeg button").forEach(b => b.addEventListener("click", async () => { await api.SetSetting("lang", b.dataset.lang).catch(e => setStatus(errText(e), true)); App.info = await api.Init().catch(() => App.info); setLang(b.dataset.lang); }));
   if (App.info.dbError) {
     await dialog(t("db.errorTitle"), h("p", { class: "soft" }, t("db.errorText", { err: App.info.dbError, p: App.info.dbPath })), [{ label: t("common.ok"), pri: true, value: true }]);
   }

@@ -6,7 +6,7 @@
   "required": ["format", "version"],
   "properties": {
     "format": {"const": "cmdex-backup"},
-    "version": {"const": 1},
+    "version": {"enum": [1, 2]},
     "exported": {"type": "string", "format": "date-time"},
     "app": {"type": "string"},
     "commands": {"type": "array", "items": {"$ref": "#/$defs/command"}},
@@ -15,7 +15,8 @@
     "rules": {"type": "array", "items": {"$ref": "#/$defs/rule"}},
     "connections": {"type": "array", "items": {"$ref": "#/$defs/connection"}},
     "collected": {"type": "array", "items": {"$ref": "#/$defs/collected"}},
-    "settings": {"type": "object", "additionalProperties": {"type": "string"}}
+    "settings": {"type": "object", "additionalProperties": {"type": "string"}},
+    "baseState": {"type": "array", "items": {"$ref": "#/$defs/baseState"}}
   },
   "$defs": {
     "platform": {"enum": ["windows", "linux", "both"]},
@@ -48,7 +49,18 @@
         "uses": {"type": "integer", "minimum": 0},
         "source": {"type": "string"},
         "created": {"type": "integer"},
-        "updated": {"type": "integer"}
+        "updated": {"type": "integer"},
+        "baseKey": {"type": "string"}
+      }
+    },
+    "baseState": {
+      "type": "object",
+      "required": ["kind", "key"],
+      "properties": {
+        "kind": {"enum": ["command", "rule"]},
+        "key": {"type": "string"},
+        "uses": {"type": "integer", "minimum": 0},
+        "hidden": {"type": "boolean"}
       }
     },
     "explain": {

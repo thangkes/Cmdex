@@ -133,11 +133,12 @@ func Normalize(raw string, secretFlags []string) (Line, bool) {
 	newCmd := true
 	program := ""
 	prevFlag := ""
+	loc, cur := false, "" // cur: the program of this part of the line; loc: it moves around or lists folders, its values are places
 	for _, tk := range toks {
 		w := tk.Text
 		if tk.Op {
 			out = append(out, w)
-			newCmd, prevFlag = true, ""
+			newCmd, prevFlag, loc = true, "", false
 			continue
 		}
 		if newCmd {
@@ -145,6 +146,7 @@ func Normalize(raw string, secretFlags []string) (Line, bool) {
 			if program == "" {
 				program = p
 			}
+			loc, cur = locationProgram[p], p
 			out = append(out, strings.ToLower(strings.Trim(w, `"'`)))
 			newCmd = p == "sudo" || p == "doas" || p == "nohup" || p == "time"
 			continue
@@ -166,10 +168,45 @@ func Normalize(raw string, secretFlags []string) (Line, bool) {
 			prevFlag = ""
 			continue
 		}
+		if loc && !locationValueFlag[prevFlag] && !reNumber.MatchString(strings.Trim(w, `"'`)) {
+			v := placeParam(w, name)
+			// cmd's cd takes a folder with spaces unquoted: cd C:\Program Files\X
+			if last := out[len(out)-1]; oneFolder[cur] && strings.HasPrefix(v, "{path") && strings.HasPrefix(last, "{path") {
+				continue
+			}
+			out = append(out, v)
+			prevFlag = ""
+			continue
+		}
 		out = append(out, valueParam(w, prevFlag, name))
 		prevFlag = ""
 	}
 	return Line{Raw: masked, Signature: strings.Join(out, " "), Program: program, Secret: secret}, true
+}
+
+// locationProgram lists the programs that change or list folders. Every
+// place given to them becomes {path} ("cd Desktop", "dir D:\Work"), so the
+// many folders a user visits fall into one template per command.
+var locationProgram = map[string]bool{
+	"cd": true, "chdir": true, "pushd": true, "set-location": true, "sl": true, "push-location": true,
+	"ls": true, "ll": true, "la": true, "dir": true, "gci": true, "get-childitem": true, "tree": true,
+}
+
+// oneFolder are the location programs that take a single folder.
+var oneFolder = map[string]bool{"cd": true, "chdir": true, "pushd": true, "set-location": true, "sl": true, "push-location": true}
+
+// locationValueFlag are options of those programs whose value is not a place
+// (Get-ChildItem -Filter *.log, -Depth 2).
+var locationValueFlag = map[string]bool{"filter": true, "include": true, "exclude": true, "depth": true, "attributes": true, "i": true}
+
+// placeParam turns a place into {path}, except the moves every newcomer
+// learns as they are: up (..), back (-), home (~), the root.
+func placeParam(w string, name func(string) string) string {
+	switch strings.Trim(w, `"'`) {
+	case "..", ".", "-", "+", "~", "/", `\`:
+		return w
+	}
+	return name("path")
 }
 
 // valueParam decides whether a word is a value, and which parameter.

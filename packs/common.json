@@ -38,7 +38,8 @@
     "nguoi dung": ["user"], "user": ["nguoi dung"], "cham": ["cpu", "slow"], "slow": ["cham", "cpu"]
   },
   "rules": [
-    {"kind": "ignore", "match": "cd, ls, dir, cls, clear, exit, pwd, history, whoami, logout, ll, la"},
+    {"kind": "category", "match": "cd, chdir, pushd, popd, set-location, sl, push-location, pop-location, pwd, get-location, ls, ll, la, dir, gci, get-childitem, tree", "result": {"en": "Files", "vi": "File & thư mục"}},
+    {"kind": "category", "match": "cls, clear, exit, logout, history, get-history, whoami", "result": {"en": "Terminal", "vi": "Terminal"}},
     {"kind": "category", "match": "ping, tracert, tracepath, traceroute, nslookup, dig, ipconfig, ip, ss, netstat, arp, route, nc, curl, curl.exe, wget, test-netconnection, resolve-dnsname, netsh, nmcli, ufw, tcpdump", "result": {"en": "Network", "vi": "Mạng"}},
     {"kind": "category", "match": "ssh, scp, rsync, sftp, ssh-keygen, ssh-copy-id", "result": {"en": "Network", "vi": "Mạng"}},
     {"kind": "category", "match": "systemctl, service, sc, get-service, restart-service, start-service, stop-service, net", "result": {"en": "Services", "vi": "Dịch vụ"}},

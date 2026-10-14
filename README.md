@@ -14,8 +14,12 @@
 - **Build them.** Every command is a template with `{parameters}`; fill them in and see the final line.
 - **Run them.** ▶ Run pastes the line into the active terminal and presses Enter — a local shell (PowerShell, bash…), an SSH server, a Telnet device or a serial console.
 - **Understand any command.** Paste a command line and Cmdex draws it with every part labelled — program, options, values, operators — with arrows pointing at each part. Combined options like `-ano` or `-tulpn` are split letter by letter. Knowledge comes from your library and from the help already on your computer (`man`, `Get-Help`, `/?`).
-- **Collect while you work.** Cmdex reads your shell history and the commands you run through it, **hides passwords and tokens first**, turns values (IPs, hosts, ports, paths, numbers) into parameters, merges lines that differ only in values, classifies them with your rules, and waits for your approval before anything enters the library.
-- **Your library, your environment.** Everything lives in one SQLite file on your computer (`%APPDATA%\Cmdex\cmdex.db`, `~/.config/cmdex/cmdex.db`). It starts with a starter pack of about 100 common Windows and Linux commands; edit or delete any of them, add your own, import and export packs as JSON.
+- **Collect while you work.** Cmdex reads your shell history and the commands you run through it, **hides passwords and tokens first**, turns values (IPs, hosts, ports, paths, numbers) into parameters, merges lines that differ only in values, classifies them with your rules, and waits for your approval before anything enters the library. Every command counts, `cd`, `dir` and `ls` included: the folders you visit become `{path}`, so `cd Desktop` and `cd D:\Work` are one template.
+- **Your library, your environment.** Two SQLite files on your computer, read as one library:
+  - **your database** (`%APPDATA%\Cmdex\cmdex.db`, `~/.config/cmdex/cmdex.db`): the commands you add, collect or change, connections and settings. Updates never touch it.
+  - **the starter commands** (`cmdex-defaults-….db`, next to it): about 100 common Windows and Linux commands with explanations, built from the packs inside the program and refreshed by every update.
+
+  Edit a starter command and it becomes your own copy, which updates leave alone; delete one and it stays deleted (**Restore starter commands** brings it back). Import and export packs as JSON.
 - **English and Vietnamese interface**, five color themes, self-update from GitHub releases (checksum-verified).
 
 ### Install
@@ -65,8 +69,12 @@ License: [MIT](LICENSE).
 - **Dựng lệnh.** Mỗi lệnh là một mẫu có `{tham số}`; điền vào là thấy ngay dòng lệnh hoàn chỉnh.
 - **Chạy luôn.** Nút ▶ Chạy dán lệnh vào terminal đang chọn và nhấn Enter — shell trên máy (PowerShell, bash…), máy chủ SSH, thiết bị Telnet hay cổng COM.
 - **Hiểu mọi dòng lệnh.** Dán một lệnh vào, Cmdex vẽ lệnh đó với từng phần được ghi chú — chương trình, tùy chọn, giá trị, toán tử — có mũi tên chỉ vào đúng chỗ. Tùy chọn ghép như `-ano`, `-tulpn` được tách từng chữ. Giải nghĩa lấy từ thư viện của bạn và từ trợ giúp có sẵn trên máy (`man`, `Get-Help`, `/?`).
-- **Tự thu thập khi bạn làm việc.** Cmdex đọc lịch sử shell và các lệnh chạy qua nó, **che mật khẩu/token trước tiên**, đổi giá trị (IP, tên máy, cổng, đường dẫn, số) thành tham số, gộp những dòng chỉ khác giá trị, phân loại theo quy tắc của bạn, và chờ bạn duyệt rồi mới đưa vào thư viện.
-- **Thư viện của bạn, theo môi trường của bạn.** Mọi thứ nằm trong một file SQLite trên máy (`%APPDATA%\Cmdex\cmdex.db`, `~/.config/cmdex/cmdex.db`). Lần đầu chạy có sẵn khoảng 100 lệnh Windows và Linux thông dụng; sửa, xóa hay thêm tùy ý, nhập/xuất gói lệnh dạng JSON.
+- **Tự thu thập khi bạn làm việc.** Cmdex đọc lịch sử shell và các lệnh chạy qua nó, **che mật khẩu/token trước tiên**, đổi giá trị (IP, tên máy, cổng, đường dẫn, số) thành tham số, gộp những dòng chỉ khác giá trị, phân loại theo quy tắc của bạn, và chờ bạn duyệt rồi mới đưa vào thư viện. Mọi lệnh đều được thu thập, kể cả `cd`, `dir`, `ls`: thư mục bạn vào được đổi thành `{path}`, nên `cd Desktop` và `cd D:\Work` gộp chung một mẫu.
+- **Thư viện của bạn, theo môi trường của bạn.** Hai file SQLite trên máy, được đọc gộp thành một thư viện:
+  - **database của bạn** (`%APPDATA%\Cmdex\cmdex.db`, `~/.config/cmdex/cmdex.db`): lệnh bạn thêm, thu thập hay sửa, kết nối và cài đặt. Cập nhật không bao giờ đụng vào.
+  - **lệnh mẫu** (`cmdex-defaults-….db`, nằm cạnh file trên): khoảng 100 lệnh Windows và Linux thông dụng kèm giải nghĩa, dựng từ các gói lệnh có sẵn trong chương trình và được làm mới mỗi lần cập nhật.
+
+  Sửa một lệnh mẫu thì nó thành bản của riêng bạn, các bản cập nhật không đè lên; xoá thì nó không tự quay lại (nút **Khôi phục lệnh mẫu** đưa lại). Nhập/xuất gói lệnh dạng JSON.
 - **Giao diện tiếng Việt và tiếng Anh**, 5 theme màu, tự cập nhật từ GitHub (có kiểm tra mã băm).
 
 ### Cài đặt
