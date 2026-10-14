@@ -5,7 +5,7 @@
   "RT_MANIFEST": {
     "#1": {
       "0409": {
-        "identity": {"name": "Cmdex", "version": "0.1.4.0"},
+        "identity": {"name": "Cmdex", "version": "0.1.5.0"},
         "description": "Cmdex",
         "minimum-os": "win10",
         "execution-level": "as invoker",
@@ -18,17 +18,17 @@
   "RT_VERSION": {
     "#1": {
       "0000": {
-        "fixed": {"file_version": "0.1.4.0", "product_version": "0.1.4.0"},
+        "fixed": {"file_version": "0.1.5.0", "product_version": "0.1.5.0"},
         "info": {
           "0409": {
             "CompanyName": "Cmdex",
             "FileDescription": "Cmdex — command library, builder and terminal",
-            "FileVersion": "0.1.4",
+            "FileVersion": "0.1.5",
             "InternalName": "Cmdex",
             "LegalCopyright": "Copyright (c) 2026 Cmdex contributors",
             "OriginalFilename": "Cmdex.exe",
             "ProductName": "Cmdex",
-            "ProductVersion": "0.1.4"
+            "ProductVersion": "0.1.5"
           }
         }
       }
