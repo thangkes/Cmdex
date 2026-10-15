@@ -4,6 +4,8 @@
 
 [English](#english) · [Tiếng Việt](#tiếng-việt)
 
+<p align="center"><img src="docs/img/map-galaxy.png" width="780" alt="Cmdex folder map: a project drawn as a galaxy, a file hovered with its details and the path from the centre traced, and the commands for train.py ready to paste"></p>
+
 ---
 
 ## English
@@ -21,6 +23,7 @@
   - **the starter commands** (`cmdex-defaults-….db`, next to it): about 100 common Windows and Linux commands with explanations, built from the packs inside the program and refreshed by every update.
 
   Edit a starter command and it becomes your own copy, which updates leave alone; delete one and it stays deleted (**Restore starter commands** brings it back). Import and export packs as JSON.
+- **See your folders as a galaxy.** Work ▸ Map draws the terminal's folder as stars you can hover, fly into and act on; the trash is a black hole. See [Folder map](#folder-map).
 - **English and Vietnamese interface**, five color themes, self-update from GitHub releases (checksum-verified).
 
 ### Install
@@ -153,11 +156,24 @@ For interface work without the desktop shell: `CMDEX_DB=./tmp/cmdex.db go run ./
 
 **Library ▸ Export…** saves a full backup (`.json`: commands, explanations, rules, synonyms, connections, collected lines, settings — never passwords) or a copy of the database file (`.db`). **Library ▸ Import…** loads either one, merging into your library or replacing it. From a terminal: `cmdex --export backup.json`, `cmdex --import backup.json [--replace]`. The file format is described in [docs/backup-format.md](docs/backup-format.md).
 
+### Folder map
+
+**Work ▸ Map** draws the terminal's folder as a galaxy: the folder is the bright core, sub-folders are white stars, files are coloured dots (code, documents, media, data, programs).
+
+- **Hover** a star for its type, size, date and path; the path from the core lights up. No need to aim: the nearest star is picked. **Find** traces a file by name.
+- **Click a folder** to fly to it, and click again to make it the new core. Four layers are read at a time, so large drives stay light.
+- **File actions** (right-click): open, show in the file manager, rename, new folder, copy the path.
+- **The black hole is the trash.** Drag a star into it and the file is stretched into a strand that winds into the hole, while it goes to the system trash (restorable). Deleting never bypasses the trash.
+- **Commands for a file** come from your library (`python …`, `java -jar …`, `mvn package` for a `pom.xml`) and are pasted into the terminal.
+- **Tree** shows the same folders as a list, with the same actions.
+
+| The black hole | Tree view |
+|---|---|
+| <img src="docs/img/map-blackhole.gif" width="380" alt="A file star stretched into a strand and pulled into the black hole"> | <img src="docs/img/map-tree.png" width="420" alt="The tree view with the path to train.py highlighted"> |
+
 ### Packs
 
 A pack is a JSON file of commands, explanations, synonyms and rules; texts may be plain strings or `{"en": "…", "vi": "…"}`. See [`packs/`](packs) for the starter packs. Library ▸ Import / Export moves your library between computers.
-
-**Folder map** (Work ▸ Map): the terminal's folder drawn as a galaxy, or as a tree. Hover a star for its details and the path from the centre; click a folder to fly in (four layers are read at a time, so large drives stay light). Right-click for file actions: open, show in the file manager, rename, new folder, copy the path, or drag a star into the black hole to send it to the system trash. Commands for a file (`python …`, `java -jar …`) come from your library and are pasted into the terminal.
 
 **Tool packs** (Library ▸ Tool packs) hold commands for programs such as nmap or python. They are built into Cmdex, so nothing is downloaded. Cmdex offers one when it finds its program on `PATH`; it only looks at file names and never runs the program. Turning a pack off removes its commands, but the ones you edited stay. See [`packs/tools/`](packs/tools) for the format and the tldr-pages converter. The Python, Java, Maven and Gradle packs are adapted from [tldr-pages](https://github.com/tldr-pages/tldr) ([CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)), with a Vietnamese translation added.
 
@@ -180,6 +196,7 @@ License: [MIT](LICENSE).
   - **lệnh mẫu** (`cmdex-defaults-….db`, nằm cạnh file trên): khoảng 100 lệnh Windows và Linux thông dụng kèm giải nghĩa, dựng từ các gói lệnh có sẵn trong chương trình và được làm mới mỗi lần cập nhật.
 
   Sửa một lệnh mẫu thì nó thành bản của riêng bạn, các bản cập nhật không đè lên; xoá thì nó không tự quay lại (nút **Khôi phục lệnh mẫu** đưa lại). Nhập/xuất gói lệnh dạng JSON.
+- **Thư mục thành thiên hà.** Làm việc ▸ Bản đồ vẽ thư mục của terminal thành các vì sao để rê chuột, bay vào và thao tác; thùng rác là một hố đen. Xem [Bản đồ thư mục](#bản-đồ-thư-mục).
 - **Giao diện tiếng Việt và tiếng Anh**, 5 theme màu, tự cập nhật từ GitHub (có kiểm tra mã băm).
 
 ### Cài đặt
@@ -301,9 +318,22 @@ sh dist/install.sh
 
 **Thư viện lệnh ▸ Xuất…** lưu bản sao lưu đầy đủ (`.json`: lệnh, giải nghĩa, quy tắc, từ đồng nghĩa, kết nối, lệnh thu thập, cài đặt — không bao giờ có mật khẩu) hoặc bản chép file database (`.db`). **Thư viện lệnh ▸ Nhập…** nạp lại một trong hai, chọn gộp hoặc thay thế toàn bộ. Dùng dòng lệnh: `cmdex --export backup.json`, `cmdex --import backup.json [--replace]`. Cấu trúc file mô tả trong [docs/backup-format.md](docs/backup-format.md).
 
-### Gói công cụ
+### Bản đồ thư mục
 
-**Bản đồ thư mục** (Làm việc ▸ Bản đồ): thư mục của terminal vẽ thành một thiên hà, hoặc dạng cây. Rê chuột vào một ngôi sao để xem thông tin và đường đi từ tâm; bấm thư mục để bay vào (mỗi lần chỉ đọc bốn lớp nên ổ lớn vẫn nhẹ). Chuột phải để thao tác file: mở, hiện trong Explorer, đổi tên, tạo thư mục, chép đường dẫn, hoặc kéo ngôi sao vào hố đen để bỏ vào Thùng rác. Lệnh cho một file (`python …`, `java -jar …`) lấy từ thư viện và được dán vào terminal.
+**Làm việc ▸ Bản đồ** vẽ thư mục của terminal thành một thiên hà: thư mục là lõi sáng, thư mục con là sao trắng, file là các chấm màu (code, tài liệu, ảnh/video, dữ liệu, chương trình).
+
+- **Rê chuột** vào ngôi sao để xem loại, dung lượng, ngày sửa và đường dẫn; đường đi từ lõi sẽ sáng lên. Không cần trỏ trúng, Cmdex tự bắt ngôi sao gần nhất. Ô **Tìm** giúp truy vết file theo tên.
+- **Bấm thư mục** để bay tới, bấm lần nữa để nó thành lõi mới. Mỗi lần chỉ đọc 4 lớp nên ổ lớn vẫn nhẹ.
+- **Thao tác file** (chuột phải): mở, hiện trong Explorer, đổi tên, tạo thư mục, chép đường dẫn.
+- **Hố đen là Thùng rác.** Kéo ngôi sao thả vào hố đen: file bị kéo thành sợi xoắn vào hố đen, còn thực tế là vào Thùng rác của hệ điều hành (khôi phục được). Không bao giờ xoá vĩnh viễn.
+- **Lệnh cho file** lấy từ thư viện (`python …`, `java -jar …`, `mvn package` cho `pom.xml`) và được dán vào terminal.
+- **Cây thư mục** hiện cùng dữ liệu dạng danh sách, đủ các thao tác như trên.
+
+| Hố đen | Cây thư mục |
+|---|---|
+| <img src="docs/img/map-blackhole.gif" width="380" alt="Ngôi sao file bị kéo thành sợi và hút vào hố đen"> | <img src="docs/img/map-tree.png" width="420" alt="Chế độ cây, đường dẫn tới train.py được tô sáng"> |
+
+### Gói công cụ
 
 **Thư viện lệnh ▸ Gói công cụ** chứa lệnh cho các chương trình như nmap, python. Các gói có sẵn trong Cmdex nên không tải gì về. Cmdex gợi ý một gói khi thấy chương trình đó trong `PATH`. Nó chỉ xem tên file, không chạy chương trình. Tắt gói sẽ bỏ các lệnh của gói, nhưng lệnh bạn đã sửa vẫn được giữ. Định dạng gói và công cụ chuyển từ tldr-pages xem ở [`packs/tools/`](packs/tools). Các gói Python, Java, Maven, Gradle được chuyển thể từ [tldr-pages](https://github.com/tldr-pages/tldr) ([CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)) và dịch thêm tiếng Việt.
 
