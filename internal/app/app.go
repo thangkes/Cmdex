@@ -11,7 +11,6 @@ import (
 	"github.com/thangkes/cmdex/internal/collect"
 	"github.com/thangkes/cmdex/internal/store"
 	"github.com/thangkes/cmdex/internal/update"
-	"github.com/thangkes/cmdex/packs"
 )
 
 // Version is set at build time
@@ -87,7 +86,7 @@ func (a *App) ready() {
 		// secrets missed by an older Cmdex are masked once, before anything
 		// (the backup copy made on upgrade) is copied
 		a.coll.Rescrub()
-		if err := a.store.UseDefaults(packs.All(), a.lang()); err != nil {
+		if err := a.store.UseDefaults(a.activePacks(), a.lang()); err != nil {
 			a.dbErr = err.Error() // the user's own library still works
 		}
 		a.coll.ScrubBackup() // a copy made by Cmdex 0.1.3 before that
@@ -149,7 +148,7 @@ func (a *App) SetSetting(key, value string) error {
 		return err
 	}
 	if key == "lang" {
-		return a.store.UseDefaults(packs.All(), value)
+		return a.store.UseDefaults(a.activePacks(), value)
 	}
 	return nil
 }

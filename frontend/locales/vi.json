@@ -305,5 +305,20 @@
   "term.secretHint": "Dùng cho dấu nhắc sudo, su, Password:... Nhập bằng bàn phím ảo, gửi kèm Enter, không bao giờ được lưu.",
   "protect.on": "Đang BẬT chặn chụp màn hình: ảnh chụp, quay màn hình và chia sẻ màn hình không thấy Cmdex. Bấm để tắt.",
   "protect.off": "Đang TẮT chặn chụp màn hình. Bấm để ẩn Cmdex khỏi ảnh chụp, quay và chia sẻ màn hình.",
-  "protect.unsupported": "Chặn chụp màn hình cần Windows 10 (2004) trở lên; Linux không hỗ trợ."
+  "protect.unsupported": "Chặn chụp màn hình cần Windows 10 (2004) trở lên; Linux không hỗ trợ.",
+  "tools.title": "Gói công cụ",
+  "tools.lead": "Lệnh cho các chương trình như nmap, python. Các gói có sẵn trong Cmdex nên không tải gì về. Cmdex gợi ý một gói khi thấy chương trình đó trong PATH. Nó chỉ xem tên file, không chạy chương trình.",
+  "tools.none": "Bản Cmdex này chưa có gói công cụ nào.",
+  "tools.commands": "{n} lệnh",
+  "tools.translated": "Tiếng Việt {n}/{total}",
+  "tools.found": "đã thấy: {p}",
+  "tools.notFound": "chưa thấy trên máy ({p})",
+  "tools.note": "Tắt gói sẽ bỏ các lệnh của gói. Lệnh bạn đã sửa vẫn giữ trong thư viện.",
+  "tools.offerTitle": "Phát hiện {name}",
+  "tools.offerText": "Cmdex thấy máy có {name}. Thêm gói {n} lệnh của nó vào thư viện?",
+  "tools.origin": "Nguồn: {o}",
+  "tools.add": "Thêm",
+  "tools.never": "Không hỏi lại",
+  "tools.added": "Đã thêm {name}: {n} lệnh.",
+  "tools.removed": "Đã bỏ gói {name}."
 }

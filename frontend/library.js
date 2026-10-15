@@ -57,6 +57,7 @@ async function renderLibrary() {
     h("button", { type: "button", class: "btn pri small", onclick: () => Library.newFromText("") }, t("lib.new")),
     h("button", { type: "button", class: "btn small", onclick: importAny }, t("lib.import")),
     h("button", { type: "button", class: "btn small", onclick: exportMenu }, t("lib.export")),
+    h("button", { type: "button", class: "btn small", onclick: toolPacksDialog }, t("tools.title")),
     h("button", { type: "button", class: "btn ghost small", onclick: reimport }, t("lib.reimport"))));
   list.appendChild(filter);
   list.appendChild(items);

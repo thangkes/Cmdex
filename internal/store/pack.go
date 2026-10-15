@@ -42,27 +42,37 @@ func (t Text) MarshalJSON() ([]byte, error) {
 	return json.Marshal(map[string]string(t))
 }
 
-// In returns the text in lang, falling back to English, then to any.
+// In returns the text in lang, falling back to English, then to any. An
+// empty text counts as missing: a pack waiting for its translation gives
+// {"en": "...", "vi": ""}.
 func (t Text) In(lang string) string {
-	if v, ok := t[lang]; ok {
-		return v
-	}
-	if v, ok := t[""]; ok {
-		return v
-	}
-	if v, ok := t["en"]; ok {
-		return v
+	for _, k := range []string{lang, "", "en"} {
+		if v, ok := t[k]; ok && v != "" {
+			return v
+		}
 	}
 	for _, v := range t {
-		return v
+		if v != "" {
+			return v
+		}
 	}
 	return ""
 }
 
+// Has reports whether the text is given in lang itself (not by falling back).
+func (t Text) Has(lang string) bool { return t[lang] != "" }
+
 // Pack is a shareable set of commands, explanations, synonyms and rules:
 // the starter packs shipped with Cmdex and the files Import/Export use.
+//
+// A tool pack holds the commands of a program that is not part of the
+// system (nmap, python…): Tools lists the programs that bring it, and
+// Cmdex offers it when it finds one of them on this computer.
 type Pack struct {
 	Name     string              `json:"name"`
+	Title    Text                `json:"title,omitempty"`  // shown in the list of tool packs
+	Tools    []string            `json:"tools,omitempty"`  // programs that bring a tool pack
+	Origin   string              `json:"origin,omitempty"` // where the content comes from, and its licence
 	Version  int                 `json:"version"`
 	Commands []PackCommand       `json:"commands"`
 	Explain  []PackExplain       `json:"explain,omitempty"`

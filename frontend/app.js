@@ -123,6 +123,7 @@ async function start() {
   window.runtime.EventsOn("collect:merged", n => { setStatus(t("collect.autoMerged", { n })); refreshCollectBadge(); if (App.view === "collect") renderCollect(); });
   window.runtime.EventsOn("update:available", offerUpdate);
   openLocal(); // a ready shell, like any terminal
+  offerToolPacks();
 }
 
 window.addEventListener("DOMContentLoaded", () => {

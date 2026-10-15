@@ -2,6 +2,7 @@ package packs
 
 import (
 	"bytes"
+	"path"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -230,17 +231,22 @@ func TestDevicePacks(t *testing.T) {
 // Pack files are UTF-8 with a BOM, so Windows editors show Vietnamese
 // right; the BOM must not reach the commands.
 func TestPackFilesAreUTF8WithBOM(t *testing.T) {
-	entries, _ := files.ReadDir(".")
-	for _, e := range entries {
-		b, _ := files.ReadFile(e.Name())
-		if !bytes.HasPrefix(b, store.BOM) {
-			t.Errorf("%s: no UTF-8 BOM", e.Name())
-		}
-		if !utf8.Valid(b) {
-			t.Errorf("%s: not valid UTF-8", e.Name())
+	for _, dir := range []string{".", "tools"} {
+		entries, _ := files.ReadDir(dir)
+		for _, e := range entries {
+			if !strings.HasSuffix(e.Name(), ".json") {
+				continue
+			}
+			b, _ := files.ReadFile(path.Join(dir, e.Name()))
+			if !bytes.HasPrefix(b, store.BOM) {
+				t.Errorf("%s: no UTF-8 BOM", e.Name())
+			}
+			if !utf8.Valid(b) {
+				t.Errorf("%s: not valid UTF-8", e.Name())
+			}
 		}
 	}
-	for _, p := range All() {
+	for _, p := range append(All(), Tools()...) {
 		if strings.ContainsRune(p.Name, '\ufeff') || strings.ContainsRune(p.Commands[0].Template, '\ufeff') {
 			t.Errorf("%s: BOM leaked into the pack", p.Name)
 		}
@@ -250,11 +256,67 @@ func TestPackFilesAreUTF8WithBOM(t *testing.T) {
 // Every starter command declares at least the risk Cmdex detects in it,
 // so the pack files themselves say which commands are dangerous.
 func TestPackRiskDeclared(t *testing.T) {
-	for _, p := range All() {
+	for _, p := range append(All(), Tools()...) {
 		for _, c := range p.Commands {
 			if d := store.DetectRisk(c.Template, c.Platform); c.Danger < d {
 				t.Errorf("%s: %q declares %d, detected %d", p.Name, c.Template, c.Danger, d)
 			}
+		}
+	}
+}
+
+// Tool packs must be valid (Tools panics otherwise) and every command must
+// reach the library next to the starter packs: none refused, none hidden
+// behind a starter command with the same template.
+func TestToolPacks(t *testing.T) {
+	starter := map[string]bool{}
+	for _, p := range All() {
+		for _, c := range p.Commands {
+			starter[c.Platform+" "+c.Template] = true
+		}
+	}
+	for _, tp := range Tools() {
+		for _, c := range tp.Commands {
+			if starter[c.Platform+" "+c.Template] {
+				t.Errorf("%s: %q is already a starter command", tp.Name, c.Template)
+			}
+		}
+		for _, lang := range []string{"en", "vi"} {
+			s, err := store.Open(filepath.Join(t.TempDir(), "c.db"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := s.UseDefaults([]store.Pack{tp}, lang); err != nil {
+				t.Fatal(err)
+			}
+			cmds, _ := s.Commands()
+			if len(cmds) != len(tp.Commands) {
+				t.Errorf("%s/%s: %d commands in the pack, %d in the library", tp.Name, lang, len(tp.Commands), len(cmds))
+			}
+			s.Close()
+		}
+	}
+}
+
+func TestValidToolPack(t *testing.T) {
+	ok := store.Pack{Name: "nmap", Title: store.Text{"en": "Nmap"}, Tools: []string{"nmap"}, Origin: "test"}
+	if !ValidToolPack(ok) {
+		t.Fatal("a good pack refused")
+	}
+	for _, bad := range []func(p *store.Pack){
+		func(p *store.Pack) { p.Name = "" },
+		func(p *store.Pack) { p.Name = "a,b" },
+		func(p *store.Pack) { p.Title = nil },
+		func(p *store.Pack) { p.Origin = " " },
+		func(p *store.Pack) { p.Tools = nil },
+		func(p *store.Pack) { p.Tools = []string{"../bin/sh"} },
+		func(p *store.Pack) { p.Tools = []string{`C:\nmap`} },
+	} {
+		p := ok
+		p.Tools = append([]string{}, ok.Tools...)
+		bad(&p)
+		if ValidToolPack(p) {
+			t.Errorf("accepted %+v", p)
 		}
 	}
 }

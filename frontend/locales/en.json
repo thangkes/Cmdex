@@ -305,5 +305,20 @@
   "term.secretHint": "For sudo, su or Password: prompts: entered on the secure keypad, sent with Enter, never stored.",
   "protect.on": "Screen-capture protection ON: screenshots, recordings and screen sharing do not see Cmdex. Click to turn off.",
   "protect.off": "Screen-capture protection OFF. Click to hide Cmdex from screenshots, recordings and screen sharing.",
-  "protect.unsupported": "Screen-capture protection needs Windows 10 (2004) or later; Linux has no way to offer it."
+  "protect.unsupported": "Screen-capture protection needs Windows 10 (2004) or later; Linux has no way to offer it.",
+  "tools.title": "Tool packs",
+  "tools.lead": "Commands for programs such as nmap or python. They are built into Cmdex, so nothing is downloaded. Cmdex offers a pack when it finds the program on PATH, and it only looks at file names, never runs the program.",
+  "tools.none": "This version of Cmdex has no tool packs yet.",
+  "tools.commands": "{n} commands",
+  "tools.translated": "Vietnamese {n}/{total}",
+  "tools.found": "found: {p}",
+  "tools.notFound": "not found on this computer ({p})",
+  "tools.note": "Turning a pack off removes its commands. Commands you edited stay in your library.",
+  "tools.offerTitle": "{name} found",
+  "tools.offerText": "Cmdex found {name} on this computer. Add its pack of {n} commands to the library?",
+  "tools.origin": "Source: {o}",
+  "tools.add": "Add",
+  "tools.never": "Don't ask again",
+  "tools.added": "Added {name}: {n} commands.",
+  "tools.removed": "Removed the {name} pack."
 }

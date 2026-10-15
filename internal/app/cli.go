@@ -13,7 +13,6 @@ import (
 	"github.com/thangkes/cmdex/internal/collect"
 	"github.com/thangkes/cmdex/internal/store"
 	"github.com/thangkes/cmdex/internal/update"
-	"github.com/thangkes/cmdex/packs"
 )
 
 // CLI handles command-line use; it reports whether args were for it and
@@ -64,7 +63,7 @@ func transferCLI(out io.Writer, op, file string, replace bool) int {
 			}
 			coll := &collect.Collector{Store: s} // as in the app
 			coll.Rescrub()
-			if err := s.UseDefaults(packs.All(), a.lang()); err != nil {
+			if err := s.UseDefaults(a.activePacks(), a.lang()); err != nil {
 				fmt.Fprintln(out, "defaults:", err)
 			}
 			coll.ScrubBackup()
