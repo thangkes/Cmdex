@@ -1,12 +1,12 @@
 // Folder map (Work ▸ Map): a folder and three layers below it, drawn as a
-// galaxy (or a tree). Hovering shows a file's details and traces its path
+// galaxy, or the same stars arranged as branches from left to right. Hovering shows a file's details and traces its path
 // from the centre; clicking a folder flies into it and makes it the centre.
 // Files can be opened, renamed or thrown into the black hole (the system
 // trash, so they can be restored). Commands for a file are pasted into the
 // local terminal, never run.
 
 const FMap = {
-  m: null, mode: "galaxy", sel: null, trace: null, hover: null, expanded: new Set(), pos: {},
+  m: null, mode: "galaxy", sel: null, trace: null, hover: null, pos: {},
   loading: false, started: false, angle: 0, auto: true, renaming: false, confirming: false,
 };
 
@@ -58,19 +58,18 @@ function initMap() {
     h("button", { type: "button", class: "map-ic", id: "mapTerm" }, "⌖"),
     h("button", { type: "button", class: "map-ic", id: "mapPick" }, "📁")));
   pane.appendChild(document.createElementNS("http://www.w3.org/2000/svg", "svg")).setAttribute("class", "map-sky");
-  pane.appendChild(h("div", { class: "map-tree", id: "mapTree", hidden: true }));
   pane.appendChild(h("div", { class: "map-legend", id: "mapLegend" }));
   pane.appendChild(h("div", { class: "map-card", id: "mapCard" }));
   pane.appendChild(h("div", { class: "map-tip", id: "mapTip", hidden: true }));
   pane.appendChild(h("div", { class: "map-menu", id: "mapMenu", hidden: true }));
   pane.appendChild(h("div", { class: "map-busy", id: "mapBusy", hidden: true }));
-  document.querySelectorAll("#mapModes button").forEach(b => b.onclick = () => { FMap.mode = b.dataset.m; mapDraw(); });
+  document.querySelectorAll("#mapModes button").forEach(b => b.onclick = () => { if (FMap.mode === b.dataset.m) return; FMap.mode = b.dataset.m; mapModeButtons(); Galaxy.morph(); });
   document.getElementById("mapUp").onclick = () => { if (FMap.m && FMap.m.parent) mapLoad(FMap.m.parent); };
   document.getElementById("mapPick").onclick = async () => { const p = await api.MapPickFolder().catch(e => { setStatus(errText(e), true); return ""; }); if (p) mapLoad(p); };
   document.getElementById("mapTerm").onclick = () => mapLoad(mapTerminalDir() || "");
   const q = document.getElementById("mapSearch");
   q.oninput = () => mapFind(q.value);
-  q.onkeydown = e => { if (e.key === "Enter" && FMap.trace) { mapSelect(FMap.trace); if (FMap.mode === "galaxy") Galaxy.fly(FMap.trace.children ? FMap.trace : (FMap.trace.parent || FMap.trace), false); } };
+  q.onkeydown = e => { if (e.key === "Enter" && FMap.trace) { mapSelect(FMap.trace); Galaxy.fly(FMap.trace.children ? FMap.trace : (FMap.trace.parent || FMap.trace), false); } };
   pane.addEventListener("keydown", e => {
     if (e.target.tagName === "INPUT" || !FMap.sel) return;
     if (e.key === "F2") { e.preventDefault(); mapAct("rename", FMap.sel); }
@@ -157,7 +156,7 @@ async function mapLoad(path, keepSel) {
       if (n.more) kids.push({ name: "+" + n.more, more: n.more, size: n.moreSize || 0, mod: 0 });
       return kids;
     });
-    if (centreChanged) { FMap.pos = {}; FMap.expanded = new Set([""]); }
+    if (centreChanged) FMap.pos = {};
     const want = keepSel || "";
     FMap.sel = want ? mapByPath(want) : null;
     FMap.trace = FMap.sel;
@@ -182,7 +181,7 @@ function mapFind(q) {
   q = q.trim().toLowerCase();
   if (!q || !FMap.root) { mapTrace(FMap.sel); return; }
   const hit = FMap.root.descendants().find(d => d.depth && !d.data.more && d.data.name.toLowerCase().includes(q));
-  if (hit) { hit.ancestors().forEach(a => FMap.expanded.add(mapKey(a))); mapTrace(hit); }
+  if (hit) mapTrace(hit);
 }
 
 function mapKey(d) { return d.ancestors().reverse().slice(1).map(x => x.data.name).join("/"); }
@@ -192,7 +191,7 @@ function mapKey(d) { return d.ancestors().reverse().slice(1).map(x => x.data.nam
 function mapTrace(d) {
   FMap.trace = d;
   mapDrawCrumb();
-  if (FMap.mode === "galaxy") Galaxy.paint(); else mapDrawTree();
+  Galaxy.paint();
 }
 
 function mapSelect(d) {
@@ -314,7 +313,7 @@ async function mapAct(key, d) {
   const path = mapPath(d);
   try {
     switch (key) {
-      case "enter": if (FMap.mode === "galaxy") Galaxy.fly(d, true); else mapLoad(path); break;
+      case "enter": Galaxy.fly(d, true); break;
       case "cd": mapPaste(await api.MapCdLine(path), 0); break;
       case "open":
         if (await api.MapRunnable(path)) {
@@ -331,7 +330,6 @@ async function mapAct(key, d) {
         let name = base, i = 2;
         while (names.has(name.toLowerCase())) name = base + " (" + (i++) + ")";
         const np = await api.MapMkdir(path, name);
-        FMap.expanded.add(mapKey(d));
         await mapLoad(FMap.m.root, np);
         FMap.renaming = true; mapDrawCard();
         break;
@@ -346,7 +344,7 @@ async function mapAct(key, d) {
 async function mapTrash(d) {
   const path = mapPath(d), parent = d.parent ? mapPath(d.parent) : FMap.m.root;
   FMap.confirming = false;
-  const anim = FMap.mode === "galaxy" ? Galaxy.devour(d) : Promise.resolve();
+  const anim = Galaxy.devour(d);
   try {
     await api.MapTrash(path);
     await anim;
@@ -383,61 +381,27 @@ function mapMenu(e, d) {
 
 // ---- drawing -------------------------------------------------------------------------
 
-function mapDraw(fresh) {
-  if (!FMap.m) return;
+function mapModeButtons() {
   document.querySelectorAll("#mapModes button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.m === FMap.mode)));
-  const galaxy = FMap.mode === "galaxy";
-  document.querySelector("#mapPane .map-sky").style.display = galaxy ? "block" : "none";
-  document.getElementById("mapTree").hidden = galaxy;
-  document.getElementById("mapLegend").hidden = !galaxy;
-  document.getElementById("mapUp").disabled = !FMap.m.parent;
-  mapDrawCrumb();
-  if (galaxy) Galaxy.draw(fresh); else { if (FMap.sel) FMap.sel.ancestors().forEach(a => FMap.expanded.add(mapKey(a))); mapDrawTree(); }
 }
 
-function mapDrawTree() {
-  const box = clear(document.getElementById("mapTree"));
-  if (!FMap.root) return;
-  const onPath = new Set(FMap.trace ? FMap.trace.ancestors() : []);
-  const walk = d => {
-    const n = d.data, open = FMap.expanded.has(mapKey(d));
-    const caret = n.dir ? (n.read ? (open ? "▾" : "▸") : "⤵") : "";
-    const row = h("div", { class: "tr" + (onPath.has(d) ? " path" : "") + (d === FMap.sel ? " sel" : ""), style: { paddingLeft: (6 + d.depth * 18) + "px" } },
-      h("span", { class: "cr", title: n.dir && !n.read ? t("map.act.enter") : "" }, caret),
-      h("i", { style: { background: mapColor(d) } }),
-      h("span", { class: "nm" }, n.name),
-      h("span", { class: "mt" }, mapDate(n.mod)),
-      h("span", { class: "mt" }, n.more ? "" : mapSize(n.size) + (n.dir && n.partial ? "+" : "")));
-    row.onclick = e => {
-      e.stopPropagation();
-      if (n.dir && e.target.classList.contains("cr")) {
-        if (!n.read) { mapLoad(mapPath(d)); return; }
-        const k = mapKey(d);
-        if (open) FMap.expanded.delete(k); else FMap.expanded.add(k);
-        mapDrawTree();
-        return;
-      }
-      if (n.dir && n.read) FMap.expanded.add(mapKey(d));
-      mapSelect(d);
-    };
-    row.ondblclick = () => { if (n.more) return; if (n.dir) mapLoad(mapPath(d)); else mapAct("open", d); };
-    row.oncontextmenu = e => mapMenu(e, d);
-    row.onmouseenter = e => mapTip(e, d);
-    row.onmousemove = e => mapTip(e, d);
-    row.onmouseleave = () => mapTip(null);
-    box.appendChild(row);
-    if (d.children && open) {
-      d.children.slice().sort((a, b) => (b.data.dir - a.data.dir) || (!!a.data.more - !!b.data.more) || a.data.name.localeCompare(b.data.name)).forEach(walk);
-    }
-  };
-  walk(FMap.root);
+function mapDraw(fresh) {
+  if (!FMap.m) return;
+  mapModeButtons();
+  document.getElementById("mapUp").disabled = !FMap.m.parent;
+  mapDrawCrumb();
+  Galaxy.draw(fresh);
 }
 
 // ---- the galaxy ----------------------------------------------------------------------
 
+// Two layouts of the same stars: the galaxy (a force layout round the
+// centre, turning slowly) and branches (a tree from the centre on the left
+// to the deepest layer on the right). Switching morphs one into the other.
 const Galaxy = (() => {
-  let svg, el, W = 600, H = 400, bg, world, spin, fx, hole, linkSel, starSel, labelSel, nodes = [], delaunay = null, fit = 1, home, zoom;
-  let hoverNode = null, drag = null, held = null;
+  let svg, el, W = 600, H = 400, bg, world, spin, neb, fx, hole, linkSel, haloSel, starSel, labelSel, nodes = [], links = [], delaunay = null, fit = 1, home, zoom;
+  let hoverNode = null, drag = null, held = null, morphing = false;
+  const COL = 210, ROW = 20; // branches: a column per layer, a row per star
   const ring = d => [0, 150, 240, 315][d.depth] || 330;
   const rad = d => d.depth === 0 ? 18 : d.data.dir ? 4.5 + Math.min(10, Math.sqrt((d.data.files || 0) + (d.data.dirs || 0) * 3)) : d.data.more ? 3 : 1.8 + Math.min(6, Math.log10(1 + d.data.size) * 0.9);
 
@@ -466,7 +430,7 @@ const Galaxy = (() => {
     window.addEventListener("mousemove", onDrag);
     new ResizeObserver(() => resize()).observe(el);
     d3.timer(() => {
-      if (FMap.mode !== "galaxy" || !FMap.auto || hoverNode || drag || document.getElementById("mapPane").hidden) return;
+      if (FMap.mode !== "galaxy" || morphing || !FMap.auto || hoverNode || drag || document.getElementById("mapPane").hidden) return;
       FMap.angle = (FMap.angle + 0.025) % 360;
       spin.attr("transform", `rotate(${FMap.angle})`);
       labelSel && labelSel.attr("transform", d => `rotate(${-FMap.angle},${d.x},${d.y})`);
@@ -481,7 +445,7 @@ const Galaxy = (() => {
     const rnd = d3.randomLcg(7);
     for (let i = 0; i < 220; i++) bg.append("circle").attr("cx", (rnd() - .5) * W * 1.6).attr("cy", (rnd() - .5) * H * 1.6).attr("r", rnd() < .92 ? .6 : 1.2).attr("class", "map-twinkle").style("animation-delay", (rnd() * 4).toFixed(2) + "s");
     drawHole();
-    if (nodes.length) { fitTo(); svg.call(zoom.transform, home); }
+    if (nodes.length && !morphing) { fitTo(); svg.call(zoom.transform, home); }
   }
 
   // the black hole, bottom left: an accretion disk, a photon ring and the
@@ -502,10 +466,84 @@ const Galaxy = (() => {
   }
   function holeNear(px, py) { const [x, y] = holeXY(); return Math.hypot(px - x, py - y) < 58; }
 
-  function fitTo() {
-    const maxR = d3.max(nodes, d => Math.hypot(d.x, d.y) + rad(d) + 16) || 200;
-    fit = Math.min(W, H - 70) / 2 / maxR * .95;
-    home = d3.zoomIdentity.translate(0, 18).scale(fit);
+  // fitTo frames a layout: the galaxy round its centre, the branches by
+  // their bounds (names included), never smaller than readable.
+  function fitTo(mode) {
+    if ((mode || FMap.mode) === "galaxy") {
+      const maxR = d3.max(nodes, d => Math.hypot(d.gx, d.gy) + rad(d) + 16) || 200;
+      fit = Math.min(W, H - 70) / 2 / maxR * .95;
+      home = d3.zoomIdentity.translate(0, 18).scale(fit);
+      return;
+    }
+    const x0 = d3.min(nodes, d => d.bx) - 30, x1 = d3.max(nodes, d => d.bx) + 170;
+    const y0 = d3.min(nodes, d => d.by) - 20, y1 = d3.max(nodes, d => d.by) + 20;
+    fit = Math.max(.45, Math.min(1.3, (W - 40) / (x1 - x0), (H - 90) / (y1 - y0)));
+    const cy = (y1 - y0) * fit > H - 90 ? y0 + (H - 90) / 2 / fit : (y0 + y1) / 2; // tall: start at the top
+    home = d3.zoomIdentity.translate(0, 22).scale(fit).translate(-(x0 + x1) / 2, -cy);
+  }
+
+  // branches: d3.tree from the centre (left) to the deepest layer (right);
+  // folders get a little more room than files
+  function layoutBranches() {
+    const t = d3.tree().nodeSize([ROW, COL]).separation((a, b) => (a.parent === b.parent ? 1 : 1.5) + (a.data.dir || b.data.dir ? .3 : 0));
+    const r = t(FMap.root.copy());
+    const by = new Map(r.descendants().map(x => [mapKey(x), x]));
+    const depth = d3.max(nodes, d => d.depth) || 1;
+    for (const d of nodes) { const x = by.get(mapKey(d)); d.bx = x.y - depth * COL / 2; d.by = x.x; }
+  }
+
+  function linkPath(l) {
+    const s = l.source, d = l.target;
+    if (FMap.mode !== "galaxy" || morphing === "tree") {
+      const mx = (s.x + d.x) / 2;
+      return `M${s.x},${s.y}C${mx},${s.y} ${mx},${d.y} ${d.x},${d.y}`;
+    }
+    const mx = (s.x + d.x) / 2, my = (s.y + d.y) / 2, dx = d.x - s.x, dy = d.y - s.y;
+    return `M${s.x},${s.y}Q${mx - dy * .18},${my + dx * .18} ${d.x},${d.y}`;
+  }
+
+  // place moves every mark to the stars' current positions
+  function place(branchLabels) {
+    starSel.attr("cx", d => d.x).attr("cy", d => d.y);
+    haloSel.attr("cx", d => d.x).attr("cy", d => d.y);
+    linkSel.attr("d", linkPath);
+    // branches: a folder with stars after it is named above itself (its
+    // links leave to the right), the others to the right
+    if (branchLabels) labelSel.attr("x", d => d.children ? d.x : d.x + rad(d) + 7).attr("y", d => d.children ? d.y - rad(d) - 7 : d.y + 4).attr("text-anchor", d => d.children ? "middle" : "start");
+    else labelSel.attr("x", d => d.x).attr("y", d => d.y - rad(d) - (d.data.dir ? 8 : 5)).attr("text-anchor", "middle");
+    spin.attr("transform", `rotate(${FMap.angle})`);
+    labelSel.attr("transform", d => `rotate(${-FMap.angle},${d.x},${d.y})`);
+  }
+
+  // morph slides the stars from one layout to the other: the galaxy stops
+  // turning and unrolls into branches, or the branches curl back up.
+  function morph() {
+    if (!nodes.length) return;
+    const to = FMap.mode, dur = 1100;
+    const from = nodes.map(d => [d.x, d.y]), target = nodes.map(d => to === "galaxy" ? [d.gx, d.gy] : [d.bx, d.by]);
+    const a0 = FMap.angle;
+    morphing = to;
+    setHover(null); mapTip(null);
+    fitTo(to);
+    svg.transition().duration(dur).ease(d3.easeCubicInOut).call(zoom.transform, home);
+    neb.transition().duration(dur).attr("opacity", to === "galaxy" ? 1 : 0);
+    const tm = d3.timer(ms => {
+      const t = Math.min(1, ms / dur), e = d3.easeCubicInOut(t);
+      nodes.forEach((d, i) => { d.x = from[i][0] + (target[i][0] - from[i][0]) * e; d.y = from[i][1] + (target[i][1] - from[i][1]) * e; });
+      if (to !== "galaxy") FMap.angle = a0 * (1 - e);
+      place(to === "galaxy" ? e < .5 : e >= .5);
+      if (t >= 1) { tm.stop(); done(); }
+    });
+    // a hidden window draws no frames: finish anyway
+    const safety = setTimeout(() => { if (morphing) { tm.stop(); nodes.forEach((d, i) => { d.x = target[i][0]; d.y = target[i][1]; }); if (to !== "galaxy") FMap.angle = 0; done(); } }, dur + 600);
+    function done() {
+      clearTimeout(safety);
+      morphing = false;
+      place(to !== "galaxy");
+      delaunay = d3.Delaunay.from(nodes, d => d.x, d => d.y);
+      FMap.auto = to === "galaxy";
+      paint();
+    }
   }
 
   function draw(fresh) {
@@ -513,7 +551,7 @@ const Galaxy = (() => {
     if (W !== el.clientWidth || H !== el.clientHeight) { W = 0; resize(); }
     spin.selectAll("*").remove();
     nodes = FMap.root.descendants();
-    const links = FMap.root.links();
+    links = FMap.root.links();
     nodes.forEach((d, i) => {
       const o = FMap.pos[mapKey(d)];
       if (o) { d.x = o[0]; d.y = o[1]; }
@@ -528,14 +566,16 @@ const Galaxy = (() => {
       .force("radial", d3.forceRadial(ring).strength(d => d.depth ? .16 : 1))
       .force("col", d3.forceCollide(d => rad(d) + (many ? 2 : 5))).stop();
     for (let i = 0; i < (many ? 220 : 380); i++) sim.tick();
-    nodes.forEach(d => { FMap.pos[mapKey(d)] = [d.x, d.y]; });
+    nodes.forEach(d => { FMap.pos[mapKey(d)] = [d.x, d.y]; d.gx = d.x; d.gy = d.y; });
+    layoutBranches();
+    const branches = FMap.mode !== "galaxy";
+    if (branches) { nodes.forEach(d => { d.x = d.bx; d.y = d.by; }); FMap.angle = 0; }
     delaunay = d3.Delaunay.from(nodes, d => d.x, d => d.y);
     fitTo();
-    spin.append("circle").attr("r", 360).attr("fill", "url(#mapNeb)");
+    neb = spin.append("circle").attr("r", 360).attr("fill", "url(#mapNeb)").attr("opacity", branches ? 0 : 1);
     linkSel = spin.append("g").selectAll("path").data(links).join("path").attr("class", "map-link")
-      .attr("stroke-width", d => d.target.data.dir ? 1.1 : .6)
-      .attr("d", d => { const mx = (d.source.x + d.target.x) / 2, my = (d.source.y + d.target.y) / 2, dx = d.target.x - d.source.x, dy = d.target.y - d.source.y; return `M${d.source.x},${d.source.y}Q${mx - dy * .18},${my + dx * .18} ${d.target.x},${d.target.y}`; });
-    spin.append("g").selectAll("circle").data(nodes.filter(d => d.data.dir)).join("circle")
+      .attr("stroke-width", d => d.target.data.dir ? 1.1 : .6).attr("d", linkPath);
+    haloSel = spin.append("g").selectAll("circle").data(nodes.filter(d => d.data.dir)).join("circle")
       .attr("cx", d => d.x).attr("cy", d => d.y).attr("r", d => d.depth ? rad(d) * 3 : 72).attr("fill", d => d.depth ? "rgba(140,160,255,.07)" : "url(#mapCore)");
     starSel = spin.append("g").selectAll("circle").data(nodes).join("circle")
       .attr("cx", d => d.x).attr("cy", d => d.y).attr("r", rad)
@@ -546,14 +586,14 @@ const Galaxy = (() => {
     labelSel = spin.append("g").selectAll("text").data(nodes).join("text").attr("class", "map-label")
       .attr("x", d => d.x).attr("y", d => d.y - rad(d) - (d.data.dir ? 8 : 5)).attr("text-anchor", "middle")
       .style("font-size", d => d.depth === 0 ? "14px" : d.data.dir ? "12px" : "10.5px").text(d => d.data.name);
-    spin.attr("transform", `rotate(${FMap.angle})`);
-    labelSel.attr("transform", d => `rotate(${-FMap.angle},${d.x},${d.y})`);
+    place(branches);
     if (fresh) {
-      // a new centre: the galaxy unfolds from it
-      starSel.attr("cx", 0).attr("cy", 0).transition().duration(900).ease(d3.easeCubicOut).attr("cx", d => d.x).attr("cy", d => d.y);
+      // a new centre: its stars unfold from it
+      const [ox, oy] = [FMap.root.x, FMap.root.y];
+      starSel.attr("cx", ox).attr("cy", oy).transition().duration(900).ease(d3.easeCubicOut).attr("cx", d => d.x).attr("cy", d => d.y);
       linkSel.attr("opacity", 0).transition().delay(300).duration(700).attr("opacity", 1);
       svg.call(zoom.transform, home.scale(.6)).transition().duration(900).call(zoom.transform, home);
-      FMap.auto = true;
+      FMap.auto = !branches;
     } else if (!d3.zoomTransform(el).k || d3.zoomTransform(el).k === 1) svg.call(zoom.transform, home);
     paint();
   }
@@ -561,7 +601,8 @@ const Galaxy = (() => {
   function labels() {
     if (!labelSel) return;
     const k = d3.zoomTransform(el).k, on = new Set(FMap.trace ? FMap.trace.ancestors() : []);
-    labelSel.attr("opacity", d => d.depth <= 1 || (d.data.dir && k > fit * 1.2) || k > fit * 2.2 || on.has(d) || d === hoverNode || d === FMap.sel ? 1 : 0);
+    const branches = FMap.mode !== "galaxy" && !morphing;
+    labelSel.attr("opacity", d => (branches && k >= .55) || d.depth <= 1 || (d.data.dir && k > fit * 1.2) || k > fit * 2.2 || on.has(d) || d === hoverNode || d === FMap.sel ? 1 : 0);
   }
 
   // paint shows the trace: the path from the centre to the hovered (or
@@ -579,7 +620,7 @@ const Galaxy = (() => {
   // pick finds the star nearest the pointer, within 22 screen pixels of its
   // edge: small stars need no aim.
   function pick(e) {
-    if (!delaunay || !nodes.length) return null;
+    if (!delaunay || !nodes.length || morphing) return null;
     const [x, y] = d3.pointer(e, spin.node());
     const i = delaunay.find(x, y), d = nodes[i];
     if (!d) return null;
@@ -714,5 +755,5 @@ const Galaxy = (() => {
     if (enter) tr.on("end", () => mapLoad(mapPath(d)));
   }
 
-  return { init, resize, draw, paint, fly, devour, unhold, relabel: drawHole };
+  return { init, resize, draw, paint, fly, devour, unhold, morph, relabel: drawHole };
 })();

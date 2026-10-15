@@ -252,19 +252,9 @@ table.params input[type=text], table.params select { width: 100%; min-height: 32
 .map-crumb b { color: #ffe08a; font-weight: 500; padding: 0 3px; }
 .map-crumb .sep { color: #5d6380; }
 .map-search { flex: 0 1 190px; min-width: 90px; background: rgba(10,12,20,.75); border: 1px solid rgba(160,180,255,.2); border-radius: 8px; color: #e8ebf5; padding: 4px 9px; font: inherit; font-size: 12px; }
-.map-tree { position: absolute; inset: 46px 10px 10px; overflow: auto; z-index: 2; padding-bottom: 150px; }
-.map-tree[hidden] { display: none; }
-.map-tree .tr { display: flex; align-items: center; gap: 7px; padding: 3px 8px; border-radius: 7px; cursor: pointer; white-space: nowrap; }
-.map-tree .tr:hover { background: rgba(159,184,255,.08); }
-.map-tree .tr.path { background: rgba(255,224,138,.07); }
-.map-tree .tr.path .nm { color: #ffe08a; }
-.map-tree .tr.sel { background: rgba(159,184,255,.18); }
-.map-tree .cr { width: 14px; text-align: center; color: #8a90ab; font-size: 11px; }
-.map-tree i, .map-card i, .map-tip i, .map-legend i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex: none; }
-.map-tree .nm { flex: 1; overflow: hidden; text-overflow: ellipsis; }
-.map-tree .mt { color: #6d7390; font-size: 11.5px; width: 78px; text-align: right; }
 .map-legend { position: absolute; right: 10px; top: 44px; z-index: 2; display: flex; flex-direction: column; gap: 2px; font-size: 11px; color: #a5abc2; background: rgba(10,12,20,.55); padding: 6px 8px; border-radius: 8px; }
 .map-legend[hidden] { display: none; }
+.map-card i, .map-tip i, .map-legend i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex: none; }
 .map-legend span { display: flex; align-items: center; gap: 6px; }
 .map-card { position: absolute; right: 10px; bottom: 10px; z-index: 3; width: min(390px, calc(100% - 150px)); max-height: 46%; overflow: auto; background: rgba(12,14,24,.9); border: 1px solid rgba(160,180,255,.25); border-radius: 12px; padding: 9px 11px; backdrop-filter: blur(6px); }
 .map-card .head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
