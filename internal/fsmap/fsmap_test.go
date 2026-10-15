@@ -143,6 +143,12 @@ func TestInside(t *testing.T) {
 			t.Errorf("Inside(%q) = %v", p, got)
 		}
 	}
+	// nothing scanned yet: no folder is inside (on Linux, "" + "/" is "/")
+	for _, p := range []string{"/", "/tmp/x", `C:\x`, root} {
+		if Inside("", p) || Inside("relative", p) {
+			t.Errorf("an empty or relative root holds %q", p)
+		}
+	}
 	if runtime.GOOS == "windows" && !Inside(`C:\Data\Root`, `c:\data\root\x`) {
 		t.Error("case should not matter on Windows")
 	}

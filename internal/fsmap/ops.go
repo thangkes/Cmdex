@@ -19,8 +19,12 @@ var (
 )
 
 // Inside reports whether path is root or below it (case-insensitively on
-// Windows). Both must be clean absolute paths.
+// Windows). Both must be clean absolute paths; no root (nothing scanned
+// yet) holds nothing.
 func Inside(root, path string) bool {
+	if root == "" || path == "" || !filepath.IsAbs(root) {
+		return false
+	}
 	if runtime.GOOS == "windows" {
 		root, path = strings.ToLower(root), strings.ToLower(path)
 	}
