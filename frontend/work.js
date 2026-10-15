@@ -343,7 +343,7 @@ async function showConnForm(p) {
 
 // ---- find, build, explain ------------------------------------------------------
 
-function isExplainMode() { return Work.forced ? Work.forced === "explain" : !!Work.looksCmd; }
+function isExplainMode() { return Work.forced && Work.forced !== "map" ? Work.forced === "explain" : !!Work.looksCmd; }
 
 const onQuery = debounce(async () => {
   Work.query = document.getElementById("q").value;
@@ -352,8 +352,18 @@ const onQuery = debounce(async () => {
 }, 160);
 
 function refreshRight() {
+  const map = Work.forced === "map";
+  document.querySelectorAll("#modeSeg button").forEach(b => b.setAttribute("aria-pressed", String(map ? b.dataset.mode === "map" : b.dataset.mode !== "map" && (b.dataset.mode === "explain") === isExplainMode())));
+  document.querySelector(".view.work").classList.toggle("mapmode", map);
+  document.getElementById("mapPane").hidden = !map;
+  if (map) {
+    document.getElementById("searchPane").hidden = true;
+    document.getElementById("explainPane").hidden = true;
+    document.getElementById("modeHint").textContent = t("map.modeHint");
+    mapShow();
+    return;
+  }
   const explain = isExplainMode() && Work.query.trim() !== "";
-  document.querySelectorAll("#modeSeg button").forEach(b => b.setAttribute("aria-pressed", String((b.dataset.mode === "explain") === (isExplainMode()))));
   document.getElementById("modeHint").textContent = Work.forced ? t("mode.forced") : (Work.looksCmd ? t("mode.autoExplain") : t("mode.autoSearch"));
   document.getElementById("q").classList.toggle("mono", explain);
   document.getElementById("searchPane").hidden = explain;
@@ -473,7 +483,7 @@ function focusSearch() {
 }
 
 function initWork() {
-  document.getElementById("q").addEventListener("input", () => { Work.forced = null; onQuery(); });
+  document.getElementById("q").addEventListener("input", () => { if (Work.forced !== "map") Work.forced = null; onQuery(); });
   document.getElementById("q").addEventListener("keydown", e => {
     if (e.key === "Enter" && isExplainMode()) { e.preventDefault(); runLine(Work.query, 0); }
   });
@@ -492,6 +502,7 @@ function initWork() {
 }
 
 function relabelWork() {
+  if (document.getElementById("mapPane").childElementCount) relabelMap();
   document.getElementById("openLocalBtn").textContent = t("term.openLocal", { shell: (App.info && App.info.shell) || "shell" });
   renderTabs();
   loadProfiles();

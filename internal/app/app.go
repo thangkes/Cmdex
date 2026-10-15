@@ -41,6 +41,8 @@ type App struct {
 	release  *update.Release
 	updating bool
 
+	mapRoot string // the folder on the map: file actions stay inside it
+
 	locked    string // lockOpen, or what the database waits for (dbkey.go)
 	readyOnce sync.Once
 }

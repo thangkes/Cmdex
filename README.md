@@ -157,6 +157,8 @@ For interface work without the desktop shell: `CMDEX_DB=./tmp/cmdex.db go run ./
 
 A pack is a JSON file of commands, explanations, synonyms and rules; texts may be plain strings or `{"en": "…", "vi": "…"}`. See [`packs/`](packs) for the starter packs. Library ▸ Import / Export moves your library between computers.
 
+**Folder map** (Work ▸ Map): the terminal's folder drawn as a galaxy, or as a tree. Hover a star for its details and the path from the centre; click a folder to fly in (four layers are read at a time, so large drives stay light). Right-click for file actions: open, show in the file manager, rename, new folder, copy the path, or drag a star into the black hole to send it to the system trash. Commands for a file (`python …`, `java -jar …`) come from your library and are pasted into the terminal.
+
 **Tool packs** (Library ▸ Tool packs) hold commands for programs such as nmap or python. They are built into Cmdex, so nothing is downloaded. Cmdex offers one when it finds its program on `PATH`; it only looks at file names and never runs the program. Turning a pack off removes its commands, but the ones you edited stay. See [`packs/tools/`](packs/tools) for the format and the tldr-pages converter. The Python, Java, Maven and Gradle packs are adapted from [tldr-pages](https://github.com/tldr-pages/tldr) ([CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)), with a Vietnamese translation added.
 
 License: [MIT](LICENSE).
@@ -300,6 +302,8 @@ sh dist/install.sh
 **Thư viện lệnh ▸ Xuất…** lưu bản sao lưu đầy đủ (`.json`: lệnh, giải nghĩa, quy tắc, từ đồng nghĩa, kết nối, lệnh thu thập, cài đặt — không bao giờ có mật khẩu) hoặc bản chép file database (`.db`). **Thư viện lệnh ▸ Nhập…** nạp lại một trong hai, chọn gộp hoặc thay thế toàn bộ. Dùng dòng lệnh: `cmdex --export backup.json`, `cmdex --import backup.json [--replace]`. Cấu trúc file mô tả trong [docs/backup-format.md](docs/backup-format.md).
 
 ### Gói công cụ
+
+**Bản đồ thư mục** (Làm việc ▸ Bản đồ): thư mục của terminal vẽ thành một thiên hà, hoặc dạng cây. Rê chuột vào một ngôi sao để xem thông tin và đường đi từ tâm; bấm thư mục để bay vào (mỗi lần chỉ đọc bốn lớp nên ổ lớn vẫn nhẹ). Chuột phải để thao tác file: mở, hiện trong Explorer, đổi tên, tạo thư mục, chép đường dẫn, hoặc kéo ngôi sao vào hố đen để bỏ vào Thùng rác. Lệnh cho một file (`python …`, `java -jar …`) lấy từ thư viện và được dán vào terminal.
 
 **Thư viện lệnh ▸ Gói công cụ** chứa lệnh cho các chương trình như nmap, python. Các gói có sẵn trong Cmdex nên không tải gì về. Cmdex gợi ý một gói khi thấy chương trình đó trong `PATH`. Nó chỉ xem tên file, không chạy chương trình. Tắt gói sẽ bỏ các lệnh của gói, nhưng lệnh bạn đã sửa vẫn được giữ. Định dạng gói và công cụ chuyển từ tldr-pages xem ở [`packs/tools/`](packs/tools). Các gói Python, Java, Maven, Gradle được chuyển thể từ [tldr-pages](https://github.com/tldr-pages/tldr) ([CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)) và dịch thêm tiếng Việt.
 

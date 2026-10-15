@@ -61,6 +61,7 @@
         <div class="seg" role="group" id="modeSeg">
           <button type="button" data-mode="search" data-i18n="mode.search"></button>
           <button type="button" data-mode="explain" data-i18n="mode.explain"></button>
+          <button type="button" data-mode="map" data-i18n="mode.map"></button>
         </div>
         <span class="hint" id="modeHint"></span>
       </div>
@@ -71,6 +72,7 @@
         <div id="results" class="results"></div>
       </div>
       <div id="explainPane" hidden></div>
+      <div id="mapPane" class="mappane" hidden></div>
     </section>
   </main>
 
@@ -87,6 +89,7 @@
 
 <script src="vendor/xterm.js"></script>
 <script src="vendor/addon-fit.js"></script>
+<script src="vendor/d3.min.js"></script>
 <script src="themes.js"></script>
 <script src="ui.js"></script>
 <script src="secure.js"></script>
@@ -95,6 +98,7 @@
 <script src="collect.js"></script>
 <script src="library.js"></script>
 <script src="tools.js"></script>
+<script src="map.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
