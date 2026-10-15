@@ -39,6 +39,8 @@ var (
 		`\bpfctl\s+(?:\S+\s+)*-d\b`, `\bpfctl\s+(?:\S+\s+)*-F\s*all\b`, `\benableallowallwan\b`,
 		// databases and containers
 		`\bdrop\s+(?:database|table|schema)\b`, `\btruncate\s+table\b`, `\bdocker\s+(?:system|volume)\s+prune\b`,
+		// a Java debugger open to the whole network runs any code it is sent
+		`-(?:agentlib:jdwp|xrunjdwp:)\S*address=(?:\*|0\.0\.0\.0):`,
 	)
 	warningComputer = res(
 		`\brm\b`, `\b(?:del|erase|rmdir|rd)\s`, `\bremove-item\b`,
@@ -62,7 +64,19 @@ var (
 		`\bpfctl\s+(?:\S+\s+)*-(?:k|e|F)\b`, `\bpfctl\b.*-T\s+(?:add|delete|flush|replace)\b`, `\beasyrule\s+(?:block|unblock|pass)\b`,
 		`\bpfssh\.php\s+playback\s+(?:svc|changepassword|install|uninstall|remove|restart|disable|enable)`, `/etc/rc\.(?:restart_webgui|filter_configure|reload_all)\b`,
 		`\bnginx\s+-s\b`, `\btimedatectl\s+set-`, `>\s*/etc/`,
+		// overwriting a file with ">" (">>" appends; /dev/null and 2>&1 do not count)
+		`(?:^|[^>0-9&])>\s*(?:[^\s&>/]|/[^d]|/d[^e])`,
+		// development tools: debugging ports, shared folders, memory dumps, keys
+		`-(?:agentlib:jdwp|xrunjdwp:)`, `\b(?:python[0-9.]*|py)\s+(?:-\S+\s+)*-m\s+(?:http\.server|SimpleHTTPServer)\b`, `\bphp\s+-S\b`,
+		`\bjmap\b.*-dump`, `\bjcmd\b.*\b(?:GC\.heap_dump|Thread\.dump_to_file)\b`,
+		`\bkeytool\b.*-(?:genkeypair|genkey|storepasswd|keypasswd|delete|importcert|importkeystore|import|changealias|gencert)\b`, `\bjarsigner\b`,
+		`\bjar\s+-?[a-z]*[cux]`,
+		`\bmvn\b.*\b(?:clean|install|deploy|release:\w+|dependency:(?:add|purge-local-repository)|archetype:generate|versions:set)\b`,
+		`\bgradle[w]?\b.*\b(?:clean|wrapper|init|publish\w*|uploadArchives)\b`,
+		`\bpip3?\s+(?:\S+\s+)*cache\s+(?:purge|remove)\b`,
 	)
+	// warningExempt: lines a warning pattern matches that only check something
+	warningExempt = res(`\bjarsigner\b.*\s-verify\b`)
 	// On Cisco (IOS): EXEC and configuration commands, abbreviations included.
 	criticalCisco = res(
 		`^\s*wr(?:i(?:t(?:e)?)?)?\s+er`, `^\s*erase\s+(?:startup-config|nvram:|flash:|/all)`, `^\s*reload\s*$`,
@@ -91,7 +105,7 @@ func DetectRisk(line, platform string) int {
 			}
 		}
 		for _, re := range warning {
-			if re.MatchString(part) {
+			if re.MatchString(part) && !matchesAny(warningExempt, part) {
 				risk = RiskWarning
 			}
 		}
@@ -102,6 +116,15 @@ func DetectRisk(line, platform string) int {
 // harmless lists lines a critical pattern matches by its words only:
 // cancelling a shutdown.
 var harmlessRe = res(`\bshutdown\s+(?:/a|-c)\s*$`)
+
+func matchesAny(res []*regexp.Regexp, s string) bool {
+	for _, re := range res {
+		if re.MatchString(s) {
+			return true
+		}
+	}
+	return false
+}
 
 func harmless(part string) bool {
 	for _, re := range harmlessRe {

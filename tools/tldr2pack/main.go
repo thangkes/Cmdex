@@ -338,9 +338,10 @@ func keep(t store.Text, old store.Text) store.Text {
 	for k, v := range t {
 		out[k] = v
 	}
+	fromTldr := t.In("en") != "" // otherwise (notes, purpose) the old text is all there is
 	t = out
 	for k, v := range old {
-		if k != "en" && k != "" && v != "" {
+		if (!fromTldr || k != "en" && k != "") && v != "" {
 			t[k] = v
 		}
 	}

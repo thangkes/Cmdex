@@ -88,3 +88,54 @@ func TestDetectRisk(t *testing.T) {
 		t.Fatal("RiskOf")
 	}
 }
+
+// Development tools (tool packs): debugging ports, shared folders, memory
+// dumps, keys, files overwritten.
+func TestDetectRiskDevTools(t *testing.T) {
+	cases := []struct {
+		line string
+		want int
+	}{
+		{"java -agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=*:5005 -jar app.jar", RiskCritical},
+		{"java -Xrunjdwp:transport=dt_socket,server=y,address=0.0.0.0:8000 Main", RiskCritical},
+		{"java -agentlib:jdwp=transport=dt_socket,server=y,address=127.0.0.1:5005 -jar app.jar", RiskWarning},
+		{"python -m http.server", RiskWarning},
+		{"python3 -m http.server 8080 --bind 127.0.0.1", RiskWarning},
+		{"py -3 -m http.server", RiskWarning},
+		{"jmap -dump:live,format=b,file=heap.bin 1234", RiskWarning},
+		{"jcmd 1234 GC.heap_dump /tmp/h.hprof", RiskWarning},
+		{"keytool -genkeypair -v -keystore my.keystore -alias me", RiskWarning},
+		{"keytool -storepasswd -keystore my.keystore", RiskWarning},
+		{"jarsigner app.jar mykey", RiskWarning},
+		{"jar cf app.jar *", RiskWarning},
+		{"jar -xvf app.war", RiskWarning},
+		{"mvn clean package", RiskWarning},
+		{"mvn install -DskipTests", RiskWarning},
+		{"mvn archetype:generate", RiskWarning},
+		{"gradle clean build", RiskWarning},
+		{"./gradlew wrapper --gradle-version 8.5", RiskWarning},
+		{"gradle init --type basic", RiskWarning},
+		{"pip cache purge", RiskWarning},
+		{"pip freeze > requirements.txt", RiskWarning},
+		{"Get-Process > procs.txt", RiskWarning},
+		// only reading
+		{"jarsigner -verify app.jar", RiskNormal},
+		{"keytool -list -keystore my.keystore", RiskNormal},
+		{"jar tf app.jar", RiskNormal},
+		{"jmap -histo 1234", RiskNormal},
+		{"jstack 1234", RiskNormal},
+		{"mvn compile", RiskNormal},
+		{"gradle test --info", RiskNormal},
+		{"python -m json.tool data.json", RiskNormal},
+		{"pip list --outdated", RiskNormal},
+		{"find / -name x 2>/dev/null", RiskNormal},
+		{"make 2>&1 | tee build.log", RiskNormal},
+		{"echo done >> build.log", RiskNormal},
+		{"cmd > /dev/null", RiskNormal},
+	}
+	for _, c := range cases {
+		if got := DetectRisk(c.line, Both); got != c.want {
+			t.Errorf("%q: %d, want %d", c.line, got, c.want)
+		}
+	}
+}

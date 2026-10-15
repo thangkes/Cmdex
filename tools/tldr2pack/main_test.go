@@ -83,6 +83,7 @@ func TestMergeKeepsTranslations(t *testing.T) {
 	first.Commands[0].Name["vi"] = "Quét máy, in chi tiết"
 	first.Commands[0].Category = store.Text{"en": "Demo", "vi": "Nhóm VI"}
 	first.Commands[0].Danger = 1
+	first.Commands[0].Notes = store.Text{"en": "Careful", "vi": "Cẩn thận"}
 	first.Commands[1].Params[0].Description["vi"] = "số cổng"
 	first.Commands = append(first.Commands, store.PackCommand{Name: store.Text{"en": "Extra", "vi": "Thêm"}, Platform: store.Both, Template: "demo --extra"})
 
@@ -92,7 +93,7 @@ func TestMergeKeepsTranslations(t *testing.T) {
 		t.Errorf("warnings: %q", warnings)
 	}
 	c := again.Commands[0]
-	if c.Name.In("vi") != "Quét máy, in chi tiết" || c.Danger != 1 || c.Category.In("vi") != "Nhóm VI" {
+	if c.Name.In("vi") != "Quét máy, in chi tiết" || c.Danger != 1 || c.Category.In("vi") != "Nhóm VI" || c.Notes.In("en") != "Careful" || c.Notes.In("vi") != "Cẩn thận" {
 		t.Errorf("first command: %+v", c)
 	}
 	if again.Commands[2].Category.In("vi") == "Nhóm VI" {
