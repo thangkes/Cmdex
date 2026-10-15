@@ -109,3 +109,37 @@ func TestMergeKeepsTranslations(t *testing.T) {
 		t.Errorf("untranslated %d of %d", missing, total)
 	}
 }
+
+// Examples to change become defaults; braces inside a placeholder, Windows
+// paths and "(Windows)" in the description are understood.
+func TestPlaceholderKinds(t *testing.T) {
+	pg := parsePage("# demo\n\n" +
+		"- Pretty-print JSON:\n\n`echo '{{{\"key\": \"value\"}}}' | demo`\n\n" +
+		"- Save to a file:\n\n`demo freeze > {{requirements.txt}}`\n\n" +
+		"- Use a profile:\n\n`demo --profile {{profile}} --version {{8.5}}`\n\n" +
+		"- Activate (Windows):\n\n`{{path\\to\\env}}\\Scripts\\activate.bat`\n")
+	p, warnings := build([]sourcePage{{platform: store.Both, page: pg}}, options{name: "demo", title: "Demo", tools: []string{"demo"}})
+	if len(warnings) != 0 || len(p.Commands) != 4 {
+		t.Fatalf("%d commands, warnings %q", len(p.Commands), warnings)
+	}
+	want := []struct{ tpl, platform, key, typ, def string }{
+		{"echo '{key}' | demo", store.Both, "key", "text", `{"key": "value"}`},
+		{"demo freeze > {requirements}", store.Both, "requirements", "text", "requirements.txt"},
+		{"demo --profile {profile} --version {value}", store.Both, "profile", "text", ""},
+		{`{env}\Scripts\activate.bat`, store.Windows, "env", "path", ""},
+	}
+	for i, w := range want {
+		c := p.Commands[i]
+		if c.Template != w.tpl || c.Platform != w.platform {
+			t.Errorf("%d: %q on %s, want %q on %s", i, c.Template, c.Platform, w.tpl, w.platform)
+			continue
+		}
+		pp := c.Params[0]
+		if pp.Key != w.key || pp.Type != w.typ || pp.Default != w.def || pp.Required != (w.def == "") {
+			t.Errorf("%d: %+v", i, pp)
+		}
+	}
+	if v := p.Commands[2].Params[1]; v.Default != "8.5" || v.Required {
+		t.Errorf("version: %+v", v)
+	}
+}

@@ -169,7 +169,9 @@ func parsePage(md string) page {
 }
 
 var (
-	rePlaceholder = regexp.MustCompile(`\{\{(.+?)\}\}`)
+	rePlaceholder = regexp.MustCompile(`\{\{(\{*.+?\}*)\}\}`)                            // {{{"key": "value"}}} holds braces
+	reDescriptive = regexp.MustCompile(`^[a-z][a-z0-9_]*( [a-z][a-z0-9_]*)*( \.\.\.)?$`) // {{package}}, {{package1 package2 ...}}
+	reWords       = regexp.MustCompile(`[a-z]+`)
 	reOptionAlt   = regexp.MustCompile(`^\[([^|\]]*)\|([^\]]*)\]$`) // {{[-p|--port]}}
 	reMnemonic    = regexp.MustCompile(`\[(\w+)\]`)                 // "[v]erbose"
 	reNotKey      = regexp.MustCompile(`[^a-z0-9_-]+`)
@@ -205,53 +207,58 @@ func (c *converter) template(cmd string) string {
 	})
 }
 
-// describe makes a parameter of a placeholder's text.
+// describe makes a parameter of a placeholder's text. tldr writes either
+// what to give ({{package}}, {{path/to/file}}) or an example to change
+// ({{requirements.txt}}, {{8.5}}): an example becomes the default value.
 func describe(inner string) store.PackParam {
 	pp := store.PackParam{Type: "text", Required: true, Description: vi(inner)}
-	switch {
-	case strings.Contains(inner, "|"): // {{1|2|3}}: one of these
+	if strings.Contains(inner, "|") && !strings.ContainsAny(inner, "{}") { // {{1|2|3}}: one of these
 		choices := strings.Split(inner, "|")
 		pp.Key, pp.Default, pp.Required = "choice", choices[0], false
 		pp.Description = vi("one of: " + strings.Join(choices, ", "))
 		return pp
-	case strings.Trim(inner, "0123456789") == "": // {{80}}: an example number
-		pp.Key, pp.Type, pp.Default, pp.Required = "number", "number", inner, false
-		pp.Description = vi("number")
-		return pp
 	}
-	word := strings.Fields(inner)[0] // {{path/to/file1 path/to/file2 ...}}
-	if i := strings.LastIndexByte(word, '/'); i >= 0 {
+	word := strings.Fields(inner + " x")[0] // {{path/to/file1 path/to/file2 ...}}
+	pathy := strings.HasPrefix(word, "path/to/") || strings.HasPrefix(word, `path\to\`)
+	if i := strings.LastIndexAny(word, `/\`); i >= 0 {
 		word = word[i+1:]
-		if j := strings.IndexByte(word, '.'); j > 0 {
-			word = word[:j] // path/to/file.txt: file
-		}
+	}
+	if j := strings.IndexByte(word, '.'); j > 0 {
+		word = word[:j] // path/to/file.txt, requirements.txt: file, requirements
+	}
+	if !pathy && !reDescriptive.MatchString(inner) {
+		pp.Default, pp.Required = inner, false
 	}
 	pp.Key = strings.Trim(reNotKey.ReplaceAllString(strings.ToLower(word), "_"), "_-")
 	if len(pp.Key) > 32 {
 		pp.Key = pp.Key[:32]
 	}
-	if pp.Key == "" { // {{./...}}: an example to keep as it is
-		pp.Key, pp.Default, pp.Required = "value", inner, false
-	} else if pp.Key[0] >= '0' && pp.Key[0] <= '9' {
-		pp.Key = "v" + pp.Key
+	switch {
+	case strings.Trim(inner, "0123456789") == "": // {{80}}
+		pp.Key = "number"
+	case pp.Key == "" || pp.Key[0] >= '0' && pp.Key[0] <= '9': // {{./...}}, {{8.5}}
+		pp.Key = "value"
 	}
-	l := strings.ToLower(inner)
-	has := func(words ...string) bool {
-		for _, w := range words {
-			if strings.Contains(l, w) {
+	words := map[string]bool{}
+	for _, w := range reWords.FindAllString(strings.ToLower(inner), -1) {
+		words[w] = true
+	}
+	has := func(ws ...string) bool {
+		for _, w := range ws {
+			if words[w] {
 				return true
 			}
 		}
 		return false
 	}
 	switch {
-	case has("password", "passphrase", "token", "secret", "api_key"):
+	case has("password", "passphrase", "token", "secret"):
 		pp.Type = "secret"
-	case has("path/", "file", "directory", "folder") || strings.HasPrefix(inner, "/") || strings.HasPrefix(inner, "~"):
+	case pathy || has("file", "filename", "directory", "folder", "dir") || strings.HasPrefix(inner, "/") || strings.HasPrefix(inner, "~"):
 		pp.Type = "path"
-	case has("host", "ip", "domain", "url", "server", "address"):
+	case has("host", "hostname", "ip", "domain", "url", "server", "address"):
 		pp.Type = "host"
-	case has("port", "count", "number", "seconds", "timeout", "size", "pid"):
+	case has("port", "count", "number", "seconds", "timeout", "size", "pid") || strings.Trim(inner, "0123456789") == "":
 		pp.Type = "number"
 	}
 	return pp
@@ -299,9 +306,18 @@ func build(pages []sourcePage, opt options) (store.Pack, []string) {
 				continue
 			}
 			name := strings.TrimSuffix(reMnemonic.ReplaceAllString(ex.desc, "$1"), ":")
+			platform := sp.platform
+			if platform == store.Both { // "Activate the environment (Windows)"
+				switch {
+				case strings.Contains(name, "(Windows)"):
+					platform = store.Windows
+				case strings.Contains(name, "(Linux"):
+					platform = store.Linux
+				}
+			}
 			p.Commands = append(p.Commands, store.PackCommand{
-				Name: vi(name), Platform: sp.platform, Category: title, Template: tpl,
-				Tags: []string{sp.page.name}, Params: c.params, Danger: store.DetectRisk(tpl, sp.platform),
+				Name: vi(name), Platform: platform, Category: title, Template: tpl,
+				Tags: []string{sp.page.name}, Params: c.params, Danger: store.DetectRisk(tpl, platform),
 			})
 		}
 	}
