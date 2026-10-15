@@ -165,11 +165,13 @@ For interface work without the desktop shell: `CMDEX_DB=./tmp/cmdex.db go run ./
 - **File actions** (right-click): open, show in the file manager, rename, new folder, copy the path.
 - **The black hole is the trash.** Drag a star into it and the file is stretched into a strand that winds into the hole, while it goes to the system trash (restorable). Deleting never bypasses the trash.
 - **Commands for a file** come from your library (`python …`, `java -jar …`, `mvn package` for a `pom.xml`) and are pasted into the terminal.
-- **Tree** shows the same folders as a list, with the same actions.
+- **Tree** arranges the same stars as branches, from the core on the left to the third layer on the right; switching between the two views morphs one into the other.
 
-| The black hole | Tree view |
+| The black hole | Galaxy ⇄ branches |
 |---|---|
-| <img src="docs/img/map-blackhole.gif" width="380" alt="A file star stretched into a strand and pulled into the black hole"> | <img src="docs/img/map-tree.png" width="420" alt="The tree view with the path to train.py highlighted"> |
+| <img src="docs/img/map-blackhole.gif" width="380" alt="A file star stretched into a strand and pulled into the black hole"> | <img src="docs/img/map-morph.gif" width="420" alt="The galaxy unrolling into branches and curling back"> |
+
+<p align="center"><img src="docs/img/map-tree.png" width="720" alt="The tree view: branches from the core on the left, a hovered photo and its path traced"></p>
 
 ### Packs
 
@@ -327,11 +329,13 @@ sh dist/install.sh
 - **Thao tác file** (chuột phải): mở, hiện trong Explorer, đổi tên, tạo thư mục, chép đường dẫn.
 - **Hố đen là Thùng rác.** Kéo ngôi sao thả vào hố đen: file bị kéo thành sợi xoắn vào hố đen, còn thực tế là vào Thùng rác của hệ điều hành (khôi phục được). Không bao giờ xoá vĩnh viễn.
 - **Lệnh cho file** lấy từ thư viện (`python …`, `java -jar …`, `mvn package` cho `pom.xml`) và được dán vào terminal.
-- **Cây thư mục** hiện cùng dữ liệu dạng danh sách, đủ các thao tác như trên.
+- **Cây thư mục** xếp chính các ngôi sao đó thành nhánh, từ lõi bên trái sang lớp thứ ba bên phải; chuyển qua lại giữa hai chế độ có hiệu ứng thiên hà duỗi thành nhánh và cuộn lại.
 
-| Hố đen | Cây thư mục |
+| Hố đen | Ngân hà ⇄ nhánh |
 |---|---|
-| <img src="docs/img/map-blackhole.gif" width="380" alt="Ngôi sao file bị kéo thành sợi và hút vào hố đen"> | <img src="docs/img/map-tree.png" width="420" alt="Chế độ cây, đường dẫn tới train.py được tô sáng"> |
+| <img src="docs/img/map-blackhole.gif" width="380" alt="Ngôi sao file bị kéo thành sợi và hút vào hố đen"> | <img src="docs/img/map-morph.gif" width="420" alt="Thiên hà duỗi thành nhánh rồi cuộn lại"> |
+
+<p align="center"><img src="docs/img/map-tree.png" width="720" alt="Chế độ cây: các nhánh từ lõi bên trái, một ảnh đang được rê chuột và truy vết"></p>
 
 ### Gói công cụ
 

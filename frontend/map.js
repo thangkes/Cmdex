@@ -400,7 +400,7 @@ function mapDraw(fresh) {
 // to the deepest layer on the right). Switching morphs one into the other.
 const Galaxy = (() => {
   let svg, el, W = 600, H = 400, bg, world, spin, neb, fx, hole, linkSel, haloSel, starSel, labelSel, nodes = [], links = [], delaunay = null, fit = 1, home, zoom;
-  let hoverNode = null, drag = null, held = null, morphing = false;
+  let hoverNode = null, drag = null, held = null, morphing = false, heavy = false, shown = null;
   const COL = 210, ROW = 20; // branches: a column per layer, a row per star
   const ring = d => [0, 150, 240, 315][d.depth] || 330;
   const rad = d => d.depth === 0 ? 18 : d.data.dir ? 4.5 + Math.min(10, Math.sqrt((d.data.files || 0) + (d.data.dirs || 0) * 3)) : d.data.more ? 3 : 1.8 + Math.min(6, Math.log10(1 + d.data.size) * 0.9);
@@ -430,10 +430,10 @@ const Galaxy = (() => {
     window.addEventListener("mousemove", onDrag);
     new ResizeObserver(() => resize()).observe(el);
     d3.timer(() => {
-      if (FMap.mode !== "galaxy" || morphing || !FMap.auto || hoverNode || drag || document.getElementById("mapPane").hidden) return;
+      if (FMap.mode !== "galaxy" || morphing || heavy || !FMap.auto || hoverNode || drag || document.getElementById("mapPane").hidden) return;
       FMap.angle = (FMap.angle + 0.025) % 360;
       spin.attr("transform", `rotate(${FMap.angle})`);
-      labelSel && labelSel.attr("transform", d => `rotate(${-FMap.angle},${d.x},${d.y})`);
+      shown && shown.attr("transform", d => `rotate(${-FMap.angle},${d.x},${d.y})`);
     });
   }
 
@@ -478,7 +478,7 @@ const Galaxy = (() => {
     const x0 = d3.min(nodes, d => d.bx) - 30, x1 = d3.max(nodes, d => d.bx) + 170;
     const y0 = d3.min(nodes, d => d.by) - 20, y1 = d3.max(nodes, d => d.by) + 20;
     fit = Math.max(.45, Math.min(1.3, (W - 40) / (x1 - x0), (H - 90) / (y1 - y0)));
-    const cy = (y1 - y0) * fit > H - 90 ? y0 + (H - 90) / 2 / fit : (y0 + y1) / 2; // tall: start at the top
+    const cy = (y1 - y0) * fit > H - 90 ? FMap.root.by : (y0 + y1) / 2; // taller than the view: the centre's row
     home = d3.zoomIdentity.translate(0, 22).scale(fit).translate(-(x0 + x1) / 2, -cy);
   }
 
@@ -503,15 +503,16 @@ const Galaxy = (() => {
   }
 
   // place moves every mark to the stars' current positions
-  function place(branchLabels) {
+  function place(branchLabels, starsOnly) {
     starSel.attr("cx", d => d.x).attr("cy", d => d.y);
     haloSel.attr("cx", d => d.x).attr("cy", d => d.y);
+    spin.attr("transform", `rotate(${FMap.angle})`);
+    if (starsOnly) return;
     linkSel.attr("d", linkPath);
     // branches: a folder with stars after it is named above itself (its
     // links leave to the right), the others to the right
     if (branchLabels) labelSel.attr("x", d => d.children ? d.x : d.x + rad(d) + 7).attr("y", d => d.children ? d.y - rad(d) - 7 : d.y + 4).attr("text-anchor", d => d.children ? "middle" : "start");
     else labelSel.attr("x", d => d.x).attr("y", d => d.y - rad(d) - (d.data.dir ? 8 : 5)).attr("text-anchor", "middle");
-    spin.attr("transform", `rotate(${FMap.angle})`);
     labelSel.attr("transform", d => `rotate(${-FMap.angle},${d.x},${d.y})`);
   }
 
@@ -523,7 +524,9 @@ const Galaxy = (() => {
     const from = nodes.map(d => [d.x, d.y]), target = nodes.map(d => to === "galaxy" ? [d.gx, d.gy] : [d.bx, d.by]);
     const a0 = FMap.angle;
     morphing = to;
+    el.classList.add("still"); // twinkling stars repaint the whole sky: paused while stars move
     setHover(null); mapTip(null);
+    if (heavy) { linkSel.attr("display", "none"); labelSel.attr("display", "none"); }
     fitTo(to);
     svg.transition().duration(dur).ease(d3.easeCubicInOut).call(zoom.transform, home);
     neb.transition().duration(dur).attr("opacity", to === "galaxy" ? 1 : 0);
@@ -531,7 +534,7 @@ const Galaxy = (() => {
       const t = Math.min(1, ms / dur), e = d3.easeCubicInOut(t);
       nodes.forEach((d, i) => { d.x = from[i][0] + (target[i][0] - from[i][0]) * e; d.y = from[i][1] + (target[i][1] - from[i][1]) * e; });
       if (to !== "galaxy") FMap.angle = a0 * (1 - e);
-      place(to === "galaxy" ? e < .5 : e >= .5);
+      place(to === "galaxy" ? e < .5 : e >= .5, heavy);
       if (t >= 1) { tm.stop(); done(); }
     });
     // a hidden window draws no frames: finish anyway
@@ -539,6 +542,8 @@ const Galaxy = (() => {
     function done() {
       clearTimeout(safety);
       morphing = false;
+      el.classList.toggle("still", heavy);
+      if (heavy) linkSel.attr("display", null);
       place(to !== "galaxy");
       delaunay = d3.Delaunay.from(nodes, d => d.x, d => d.y);
       FMap.auto = to === "galaxy";
@@ -560,6 +565,8 @@ const Galaxy = (() => {
     });
     FMap.root.fx = 0; FMap.root.fy = 0;
     const many = nodes.length > 600;
+    heavy = nodes.length > 400; // a lighter drawing: few glows, no spin or twinkle, morph moves stars only
+    el.classList.toggle("still", heavy);
     const sim = d3.forceSimulation(nodes)
       .force("link", d3.forceLink(links).distance(l => l.target.data.dir ? 90 : 30).strength(.7))
       .force("charge", d3.forceManyBody().strength(d => d.data.dir ? -380 : many ? -18 : -40).distanceMax(400))
@@ -576,13 +583,14 @@ const Galaxy = (() => {
     linkSel = spin.append("g").selectAll("path").data(links).join("path").attr("class", "map-link")
       .attr("stroke-width", d => d.target.data.dir ? 1.1 : .6).attr("d", linkPath);
     haloSel = spin.append("g").selectAll("circle").data(nodes.filter(d => d.data.dir)).join("circle")
-      .attr("cx", d => d.x).attr("cy", d => d.y).attr("r", d => d.depth ? rad(d) * 3 : 72).attr("fill", d => d.depth ? "rgba(140,160,255,.07)" : "url(#mapCore)");
+      .attr("cx", d => d.x).attr("cy", d => d.y).attr("r", d => d.depth ? rad(d) * 3 : 72).attr("fill", d => d.depth ? "rgba(140,160,255,.07)" : "url(#mapCore)")
+      .attr("display", d => heavy && d.depth > 1 ? "none" : null);
     starSel = spin.append("g").selectAll("circle").data(nodes).join("circle")
       .attr("cx", d => d.x).attr("cy", d => d.y).attr("r", rad)
       .attr("fill", d => mapColor(d)).attr("fill-opacity", d => d.data.more ? .45 : 1)
       .attr("stroke", d => d.data.dir && !d.data.read && d.depth ? "rgba(255,255,255,.6)" : null)
       .attr("stroke-dasharray", d => d.data.dir && !d.data.read && d.depth ? "2 2" : null)
-      .attr("filter", d => d.data.dir ? "url(#mapG2)" : many ? null : "url(#mapG1)");
+      .attr("filter", d => heavy ? (d.data.dir && d.depth <= 1 ? "url(#mapG2)" : null) : d.data.dir ? "url(#mapG2)" : "url(#mapG1)");
     labelSel = spin.append("g").selectAll("text").data(nodes).join("text").attr("class", "map-label")
       .attr("x", d => d.x).attr("y", d => d.y - rad(d) - (d.data.dir ? 8 : 5)).attr("text-anchor", "middle")
       .style("font-size", d => d.depth === 0 ? "14px" : d.data.dir ? "12px" : "10.5px").text(d => d.data.name);
@@ -602,7 +610,11 @@ const Galaxy = (() => {
     if (!labelSel) return;
     const k = d3.zoomTransform(el).k, on = new Set(FMap.trace ? FMap.trace.ancestors() : []);
     const branches = FMap.mode !== "galaxy" && !morphing;
-    labelSel.attr("opacity", d => (branches && k >= .55) || d.depth <= 1 || (d.data.dir && k > fit * 1.2) || k > fit * 2.2 || on.has(d) || d === hoverNode || d === FMap.sel ? 1 : 0);
+    if (morphing && heavy) return;
+    const vis = d => (branches && k >= .55) || d.depth <= 1 || (d.data.dir && k > fit * 1.2) || k > fit * 2.2 || on.has(d) || d === hoverNode || d === FMap.sel;
+    labelSel.attr("display", d => vis(d) ? null : "none");
+    shown = labelSel.filter(vis);
+    shown.attr("transform", d => `rotate(${-FMap.angle},${d.x},${d.y})`);
   }
 
   // paint shows the trace: the path from the centre to the hovered (or

@@ -27,8 +27,8 @@ import (
 const Depth = 3
 
 const (
-	perDir     = 60   // entries shown per folder; the others are summed in More
-	maxEntries = 2000 // entries read per scan, then deeper folders stay closed
+	perDir     = 40   // entries shown per folder; the others are summed in More
+	maxEntries = 1200 // entries read per scan, then deeper folders stay closed
 )
 
 // Node is a file or folder on the map.

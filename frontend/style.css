@@ -291,6 +291,7 @@ table.params input[type=text], table.params select { width: 100%; min-height: 32
 .map-label.on { fill: #ffe08a; }
 .map-twinkle { fill: #fff; animation: maptw 4s ease-in-out infinite; }
 @keyframes maptw { 0%, 100% { opacity: .15; } 50% { opacity: .8; } }
+.map-sky.still .map-twinkle { animation: none; opacity: .4; }
 .map-hole .disk { animation: mapdisk 6s linear infinite; transform-origin: 0 0; }
 @keyframes mapdisk { from { transform: rotate(-8deg); } 50% { transform: rotate(8deg); } to { transform: rotate(-8deg); } }
 .map-hole .photon { transition: stroke-width .2s, r .2s; }
