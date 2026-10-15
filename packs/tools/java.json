@@ -2,7 +2,7 @@
   "name": "java",
   "title": {"en":"Java","vi":"Java"},
   "tools": ["java","javac"],
-  "origin": "tldr-pages (CC BY 4.0), https://github.com/tldr-pages/tldr",
+  "origin": "tldr-pages (CC BY 4.0), https://github.com/tldr-pages/tldr; adapted, with a Vietnamese translation",
   "version": 1,
   "commands": [
     {"name":{"en":"Execute a Java `.class` file that contains a main method by using just the class name","vi":"Chạy một lớp Java có hàm main (chỉ cần tên lớp)"},"platform":"both","category":{"en":"Java","vi":"Java"},"template":"java {classname}","tags":["java"],"params":[{"key":"classname","type":"text","description":{"en":"classname","vi":"Tên lớp"},"required":true}]},

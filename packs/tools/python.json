@@ -2,7 +2,7 @@
   "name": "python",
   "title": {"en":"Python","vi":"Python"},
   "tools": ["python","python3","py","pip","pip3"],
-  "origin": "tldr-pages (CC BY 4.0), https://github.com/tldr-pages/tldr",
+  "origin": "tldr-pages (CC BY 4.0), https://github.com/tldr-pages/tldr; adapted, with a Vietnamese translation",
   "version": 1,
   "commands": [
     {"name":{"en":"Start a REPL (interactive shell)","vi":"Mở Python tương tác (REPL)"},"platform":"both","category":{"en":"Python","vi":"Python"},"template":"python","tags":["python"]},

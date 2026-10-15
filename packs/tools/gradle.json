@@ -2,7 +2,7 @@
   "name": "gradle",
   "title": {"en":"Gradle","vi":"Gradle"},
   "tools": ["gradle"],
-  "origin": "tldr-pages (CC BY 4.0), https://github.com/tldr-pages/tldr",
+  "origin": "tldr-pages (CC BY 4.0), https://github.com/tldr-pages/tldr; adapted, with a Vietnamese translation",
   "version": 1,
   "commands": [
     {"name":{"en":"Compile a package","vi":"Build dự án"},"platform":"both","category":{"en":"Gradle","vi":"Gradle"},"template":"gradle build","tags":["gradle"]},

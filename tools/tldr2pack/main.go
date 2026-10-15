@@ -277,7 +277,7 @@ type options struct {
 func build(pages []sourcePage, opt options) (store.Pack, []string) {
 	title := store.Text{"en": opt.title, "vi": opt.titleVi}
 	p := store.Pack{Name: opt.name, Title: title, Tools: opt.tools, Version: 1,
-		Origin: "tldr-pages (CC BY 4.0), https://github.com/tldr-pages/tldr"}
+		Origin: "tldr-pages (CC BY 4.0), https://github.com/tldr-pages/tldr; adapted, with a Vietnamese translation"}
 	var warnings []string
 	seen := map[string]bool{}
 	for _, sp := range pages {

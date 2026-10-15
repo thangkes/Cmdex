@@ -2,7 +2,7 @@
   "name": "maven",
   "title": {"en":"Maven","vi":"Maven"},
   "tools": ["mvn"],
-  "origin": "tldr-pages (CC BY 4.0), https://github.com/tldr-pages/tldr",
+  "origin": "tldr-pages (CC BY 4.0), https://github.com/tldr-pages/tldr; adapted, with a Vietnamese translation",
   "version": 1,
   "commands": [
     {"name":{"en":"Compile a project","vi":"Biên dịch dự án"},"platform":"both","category":{"en":"Maven","vi":"Maven"},"template":"mvn compile","tags":["mvn"]},
