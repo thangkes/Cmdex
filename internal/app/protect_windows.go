@@ -24,7 +24,16 @@ var (
 	user32          = windows.NewLazySystemDLL("user32.dll")
 	procSetAffinity = user32.NewProc("SetWindowDisplayAffinity")
 	procGetAffinity = user32.NewProc("GetWindowDisplayAffinity")
+	procIsVisible   = user32.NewProc("IsWindowVisible")
 )
+
+// visible reports whether a window is shown. Hidden helper windows (the
+// input method's, GDI+'s) draw nothing a capture could see, and some of
+// them, created later by Windows, refuse a display affinity.
+func visible(h windows.HWND) bool {
+	r, _, _ := procIsVisible.Call(uintptr(h))
+	return r != 0
+}
 
 // ownWindows lists the top-level windows of this process.
 func ownWindows() []windows.HWND {
@@ -53,6 +62,9 @@ func setCaptureProtection(on bool) error {
 			mode = wdaExcludeFromCapture
 		}
 		if r, _, err := procSetAffinity.Call(uintptr(h), mode); r == 0 {
+			if !visible(h) {
+				continue // nothing on screen to protect or unprotect
+			}
 			if !on {
 				return err
 			}
@@ -66,19 +78,21 @@ func setCaptureProtection(on bool) error {
 	return nil
 }
 
-// captureProtected reports whether every window of Cmdex is protected now.
+// captureProtected reports whether every window of Cmdex on the screen is
+// protected now (and at least one is shown).
 func captureProtected() bool {
-	wins := ownWindows()
-	if len(wins) == 0 {
-		return false
-	}
-	for _, h := range wins {
+	shown := 0
+	for _, h := range ownWindows() {
+		if !visible(h) {
+			continue
+		}
+		shown++
 		var mode uint32
 		if r, _, _ := procGetAffinity.Call(uintptr(h), uintptr(unsafe.Pointer(&mode))); r == 0 || mode == wdaNone {
 			return false
 		}
 	}
-	return true
+	return shown > 0
 }
 
 const captureSupported = true
