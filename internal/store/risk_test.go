@@ -164,3 +164,24 @@ func TestDetectRiskDevTools(t *testing.T) {
 		}
 	}
 }
+
+// The label filter: empty shows every level; 0 is "no label".
+func TestShownRisk(t *testing.T) {
+	cases := []struct {
+		risk   int
+		filter []int
+		want   bool
+	}{
+		{RiskNormal, nil, true},
+		{RiskCritical, nil, true},
+		{RiskNormal, []int{RiskNormal}, true},
+		{RiskWarning, []int{RiskNormal}, false},
+		{RiskWarning, []int{RiskWarning, RiskCritical}, true},
+		{RiskCritical, []int{RiskWarning}, false},
+	}
+	for _, c := range cases {
+		if got := ShownRisk(c.risk, c.filter); got != c.want {
+			t.Errorf("ShownRisk(%d, %v) = %v, want %v", c.risk, c.filter, got, c.want)
+		}
+	}
+}

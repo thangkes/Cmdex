@@ -120,6 +120,7 @@ type Info struct {
 	DBPath   string   `json:"dbPath"`
 	Defaults string   `json:"defaults"` // the defaults database
 	Filter   []string `json:"filter"`   // systems shown (empty: all)
+	Risks    []int    `json:"risks"`    // labels shown (empty: all; 0 = no label)
 	DBError  string   `json:"dbError"`
 	Locked   string   `json:"locked"` // "", "create", "password" or "lost"
 	Shell    string   `json:"shell"`
@@ -138,6 +139,7 @@ func (a *App) Init() Info {
 	info.Lang = a.lang()
 	info.Defaults = a.store.DefaultsPath()
 	info.Filter = a.PlatformFilter()
+	info.Risks = a.RiskFilter()
 	info.Theme = a.store.Setting("theme", "graphite")
 	info.Shell = shellLabel()
 	return info

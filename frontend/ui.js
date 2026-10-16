@@ -120,26 +120,42 @@ function osLabel(p) { return { windows: "Windows", linux: "Linux", cisco: "Cisco
 
 // The platform filter: which systems' commands are shown (empty: all), as
 // store.Shown decides. Commands keep their platform badge.
+// The label filter works beside it (store.ShownRisk): a command is shown
+// when it passes both. 0 is "no label".
 const FILTER_PLATFORMS = ["windows", "linux", "cisco", "pfsense"];
+const FILTER_RISKS = [0, 1, 2];
 function shownByFilter(c) {
   const f = (App.info && App.info.filter) || [];
-  return !f.length || f.includes(c.platform) || (c.platform === "both" && (f.includes("windows") || f.includes("linux")));
+  const r = (App.info && App.info.risks) || [];
+  const plat = !f.length || f.includes(c.platform) || (c.platform === "both" && (f.includes("windows") || f.includes("linux")));
+  return plat && (!r.length || c.risk === undefined || r.includes(Math.min(2, Math.max(0, c.risk || 0))));
 }
 
-// filterBar draws the filter: "All" or any set of systems; onChange runs
-// after it is saved.
+// filterBar draws the two filters side by side: systems and labels, each
+// "All" or any set; onChange runs after one is saved.
 function filterBar(onChange) {
   const f = (App.info && App.info.filter) || [];
+  const r = (App.info && App.info.risks) || [];
   const set = async next => {
     if (next.length === FILTER_PLATFORMS.length) next = [];
     try { await api.SetPlatformFilter(next); App.info.filter = next; } catch (e) { setStatus(errText(e), true); return; }
     onChange();
   };
+  const setRisk = async next => {
+    if (next.length === FILTER_RISKS.length) next = [];
+    try { await api.SetRiskFilter(next); App.info.risks = next; } catch (e) { setStatus(errText(e), true); return; }
+    onChange();
+  };
+  const riskLabel = l => l === 0 ? t("filter.noLabel") : t("risk." + l);
   return h("div", { class: "row wrap filterbar" },
     h("span", { class: "muted" }, t("filter.label")),
     h("div", { class: "seg", role: "group", "aria-label": t("filter.label") },
       h("button", { type: "button", "aria-pressed": String(!f.length), onclick: () => set([]) }, t("filter.all")),
-      FILTER_PLATFORMS.map(p => h("button", { type: "button", "aria-pressed": String(f.includes(p)), onclick: () => set(f.includes(p) ? f.filter(x => x !== p) : f.concat(p)) }, osLabel(p)))));
+      FILTER_PLATFORMS.map(p => h("button", { type: "button", "aria-pressed": String(f.includes(p)), onclick: () => set(f.includes(p) ? f.filter(x => x !== p) : f.concat(p)) }, osLabel(p)))),
+    h("span", { class: "muted" }, t("filter.riskLabel")),
+    h("div", { class: "seg", role: "group", "aria-label": t("filter.riskLabel") },
+      h("button", { type: "button", "aria-pressed": String(!r.length), onclick: () => setRisk([]) }, t("filter.all")),
+      FILTER_RISKS.map(l => h("button", { type: "button", class: "rf-" + l, "aria-pressed": String(r.includes(l)), onclick: () => setRisk(r.includes(l) ? r.filter(x => x !== l) : r.concat(l)) }, riskLabel(l)))));
 }
 
 // riskBadge labels a command by what running it may do (store.Risk*):

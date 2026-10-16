@@ -171,6 +171,8 @@
   "lib.count": "{n} commands",
   "filter.label": "Systems:",
   "filter.all": "All",
+  "filter.riskLabel": "Labels:",
+  "filter.noLabel": "No label",
   "filter.hidesSession": "the filter hides {p}, the active session's system",
   "lib.countFiltered": "{n} of {total} commands",
   "lib.filter": "Filter…",

@@ -64,6 +64,24 @@ func Shown(p string, filter []string) bool {
 	return false
 }
 
+// ShownRisk reports whether a command of risk level r passes the label
+// filter (empty: every level; RiskNormal stands for "no label").
+func ShownRisk(r int, filter []int) bool {
+	if len(filter) == 0 {
+		return true
+	}
+	for _, f := range filter {
+		if f == r {
+			return true
+		}
+	}
+	return false
+}
+
+// FilterRisks are the labels the user may filter the library to: none,
+// Warning and Critical.
+var FilterRisks = []int{RiskNormal, RiskWarning, RiskCritical}
+
 // FilterPlatforms are the systems the user may filter the library to.
 var FilterPlatforms = []string{Windows, Linux, Cisco, PfSense}
 

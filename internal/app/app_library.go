@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"runtime"
+	"strconv"
 	"strings"
 
 	wr "github.com/wailsapp/wails/v2/pkg/runtime"
@@ -52,17 +53,17 @@ func (a *App) Fill(template string, values map[string]string) string {
 }
 
 // Search ranks the library against a request. platform ("windows", "linux"
-// or "") puts commands for the active session first. Only the systems the
-// user filtered to are searched.
+// or "") puts commands for the active session first. Only the systems and
+// labels the user filtered to are searched.
 func (a *App) Search(query, platform string, limit int) ([]search.Result, error) {
 	all, err := a.store.Commands()
 	if err != nil {
 		return nil, err
 	}
-	filter := a.PlatformFilter()
+	filter, risks := a.PlatformFilter(), a.RiskFilter()
 	cmds := all[:0:0]
 	for _, c := range all {
-		if store.Shown(c.Platform, filter) {
+		if store.Shown(c.Platform, filter) && store.ShownRisk(c.Risk, risks) {
 			cmds = append(cmds, c)
 		}
 	}
@@ -276,6 +277,41 @@ func (a *App) SetPlatformFilter(platforms []string) error {
 		keep = nil
 	}
 	return a.store.SetSetting("filter.platforms", strings.Join(keep, ","))
+}
+
+// RiskFilter returns the labels whose commands are shown in search and in
+// the library (empty: all; 0 is "no label"). It works with the platform
+// filter: a command is shown when it passes both.
+func (a *App) RiskFilter() []int {
+	out := []int{}
+	for _, p := range strings.Split(a.store.Setting("filter.risks", ""), ",") {
+		for _, r := range store.FilterRisks {
+			if p == strconv.Itoa(r) {
+				out = append(out, r)
+			}
+		}
+	}
+	if len(out) == len(store.FilterRisks) {
+		return []int{} // every label chosen is the same as all
+	}
+	return out
+}
+
+// SetRiskFilter chooses the labels whose commands are shown (none: all).
+func (a *App) SetRiskFilter(risks []int) error {
+	var keep []string
+	for _, r := range store.FilterRisks {
+		for _, q := range risks {
+			if r == q {
+				keep = append(keep, strconv.Itoa(r))
+				break
+			}
+		}
+	}
+	if len(keep) == len(store.FilterRisks) {
+		keep = nil
+	}
+	return a.store.SetSetting("filter.risks", strings.Join(keep, ","))
 }
 
 // Synonyms returns the search synonyms.

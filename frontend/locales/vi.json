@@ -171,6 +171,8 @@
   "lib.count": "{n} lệnh",
   "filter.label": "Hệ:",
   "filter.all": "Tất cả",
+  "filter.riskLabel": "Nhãn:",
+  "filter.noLabel": "Không nhãn",
   "filter.hidesSession": "bộ lọc đang ẩn {p}, hệ của phiên đang mở",
   "lib.countFiltered": "{n} / {total} lệnh",
   "lib.filter": "Lọc…",
