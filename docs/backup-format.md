@@ -87,7 +87,7 @@ Collected command lines are stored with secrets already masked (`•••••
     {"kind": "rule", "key": "category ssh, scp", "hidden": true}         // key: "<kind> <match>"
   ],
 
-  "notes": [                         // the chat bubble's notes (since 0.1.10)
+  "notes": [                         // the chat bubble's notes (since 0.2.0)
     {"body": "Deploy **checklist**\n- [x] backup\n![screen](cmdex-img:3)", "path": "D:\\Work\\site",
      "created": 1760000000, "updated": 1760000300,
      "images": [{"id": 3, "mime": "image/png", "data": "iVBORw0KGgo…"}]}   // id: as the body names it

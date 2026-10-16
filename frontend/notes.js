@@ -4,7 +4,7 @@
 // text is never read as HTML, so a note (or an imported backup) cannot run
 // anything in the page. Notes are stored encrypted (app_notes.go).
 
-const Notes = { list: [], query: "", open: false, attach: "", editing: 0, images: new Map(), preview: false };
+const Notes = { list: [], query: "", open: false, attach: "", editing: 0, images: new Map(), preview: false, hits: [], hit: -1 };
 
 const NOTE_COLORS = ["red", "orange", "yellow", "green", "blue", "purple"];
 const NOTE_IMAGE_MAX = 1600; // pixels: larger images are scaled down before saving
@@ -16,14 +16,23 @@ function initNotes() {
   const panel = h("section", { class: "notes-panel", id: "notesPanel", hidden: true, role: "dialog" },
     h("header", {},
       h("b", { id: "notesTitle" }),
-      h("input", { type: "search", id: "notesSearch", autocomplete: "off", spellcheck: "false" }),
+      h("div", { class: "notes-find" },
+        h("span", { class: "glass", "aria-hidden": "true" }, "⌕"),
+        h("input", { type: "text", id: "notesSearch", autocomplete: "off", spellcheck: "false" }),
+        h("span", { class: "count", id: "notesCount", "aria-live": "polite" }),
+        h("button", { type: "button", class: "arrow", id: "notesPrev", onclick: () => notesStep(-1) }, "▲"),
+        h("button", { type: "button", class: "arrow", id: "notesNext", onclick: () => notesStep(1) }, "▼")),
       h("button", { type: "button", class: "ic", id: "notesClose", onclick: () => notesToggle(false) }, "×")),
     h("div", { class: "notes-list", id: "notesList" }),
     h("div", { class: "notes-compose", id: "notesCompose" }));
   document.body.appendChild(fab);
   document.body.appendChild(panel);
   const search = document.getElementById("notesSearch");
-  search.oninput = debounce(() => { Notes.query = search.value; notesLoad(); }, 200);
+  search.oninput = debounce(() => { Notes.query = search.value; Notes.hit = -1; notesFind(true); }, 150);
+  search.onkeydown = e => {
+    if (e.key === "Enter") { e.preventDefault(); notesStep(e.shiftKey ? -1 : 1); }
+    if (e.key === "Escape" && search.value) { e.preventDefault(); e.stopPropagation(); search.value = ""; Notes.query = ""; notesFind(); }
+  };
   panel.addEventListener("keydown", e => { if (e.key === "Escape" && !Notes.editing) { e.stopPropagation(); notesToggle(false); } });
   // images dropped anywhere on the panel join the note being written
   panel.addEventListener("dragover", e => { if ([...e.dataTransfer.items].some(i => i.kind === "file")) { e.preventDefault(); panel.classList.add("drop"); } });
@@ -31,6 +40,7 @@ function initNotes() {
   panel.addEventListener("drop", e => { e.preventDefault(); panel.classList.remove("drop"); notesAddFiles([...e.dataTransfer.files]); });
   document.addEventListener("keydown", e => {
     if (e.ctrlKey && e.shiftKey && !e.altKey && e.code === "KeyN") { e.preventDefault(); notesToggle(); }
+    if (Notes.open && (e.ctrlKey || e.metaKey) && !e.shiftKey && e.code === "KeyF" && panel.contains(document.activeElement)) { e.preventDefault(); search.focus(); search.select(); }
   }, true);
   drawCompose();
   relabelNotes();
@@ -43,6 +53,9 @@ function relabelNotes() {
   fab.setAttribute("aria-label", t("notes.open"));
   document.getElementById("notesTitle").textContent = t("notes.title");
   document.getElementById("notesSearch").placeholder = t("notes.search");
+  document.getElementById("notesPrev").title = t("notes.findPrev") + " (Shift+Enter)";
+  document.getElementById("notesNext").title = t("notes.findNext") + " (Enter)";
+  notesFind();
   document.getElementById("notesClose").title = t("notes.close");
   drawCompose();
   if (Notes.open) drawNotes();
@@ -56,7 +69,7 @@ function notesToggle(open) {
 }
 
 async function notesLoad(toEnd) {
-  try { Notes.list = await api.Notes(Notes.query); }
+  try { Notes.list = await api.Notes(""); }
   catch (e) { setStatus(errText(e), true); return; }
   drawNotes(toEnd);
 }
@@ -75,7 +88,8 @@ function noteDay(sec) {
 function drawNotes(toEnd) {
   const box = clear(document.getElementById("notesList"));
   if (!Notes.list.length) {
-    box.appendChild(h("div", { class: "notes-empty" }, Notes.query ? t("notes.noneFound") : t("notes.empty")));
+    box.appendChild(h("div", { class: "notes-empty" }, t("notes.empty")));
+    notesFind();
     return;
   }
   let lastDay = "";
@@ -85,6 +99,95 @@ function drawNotes(toEnd) {
     box.appendChild(noteBubble(n));
   }
   if (toEnd) box.scrollTop = box.scrollHeight;
+  notesFind(!toEnd);
+}
+
+// ---- finding in the notes ----------------------------------------------------------
+//
+// Like Ctrl+F in a browser: every match is marked where it is, a counter
+// says which one is shown ("2/7"), and the arrows (Enter, Shift+Enter) move
+// through them. Case and Vietnamese accents are ignored: "ca phe" finds
+// "cà phê".
+
+// fold lowers a text and drops accents, one character for one, so places
+// in the folded text are places in the text.
+function noteFold(s) {
+  let out = "";
+  for (const c of s) {
+    const f = c === "đ" || c === "Đ" ? "d" : c.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    out += f.length === 1 ? f : c.toLowerCase().length === 1 ? c.toLowerCase() : c;
+  }
+  return out;
+}
+
+function notesClearMarks() {
+  for (const m of document.querySelectorAll("#notesList mark.hit")) {
+    const p = m.parentNode;
+    p.replaceChild(document.createTextNode(m.textContent), m);
+    p.normalize();
+  }
+  Notes.hits = [];
+}
+
+// notesFind marks the matches of the search; reveal shows the current one.
+function notesFind(reveal) {
+  const count = document.getElementById("notesCount");
+  if (!count) return;
+  notesClearMarks();
+  const q = noteFold((Notes.query || "").trim());
+  const list = document.getElementById("notesList");
+  count.textContent = "";
+  document.getElementById("notesPrev").disabled = document.getElementById("notesNext").disabled = true;
+  if (!q) return;
+  const walker = document.createTreeWalker(list, NodeFilter.SHOW_TEXT, { acceptNode: n => n.parentElement.closest(".note-body") ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT });
+  const nodes = [];
+  for (let n; (n = walker.nextNode());) nodes.push(n);
+  for (const node of nodes) {
+    const text = node.nodeValue, folded = noteFold(text);
+    if ([...folded].length !== [...text].length) continue; // (never: fold keeps one for one)
+    const chars = [...text], fchars = [...folded], fstr = fchars.join("");
+    let from = 0, idx, cuts = [];
+    while ((idx = fstr.indexOf(q, from)) >= 0) { cuts.push(idx); from = idx + q.length; }
+    if (!cuts.length) continue;
+    // indexes are in UTF-16 units of the folded string; turn them into characters
+    const unitToChar = []; let u = 0;
+    fchars.forEach((c, i) => { for (let k = 0; k < c.length; k++) unitToChar[u++] = i; });
+    unitToChar[u] = fchars.length;
+    const frag = document.createDocumentFragment();
+    let at = 0;
+    for (const cut of cuts) {
+      const a = unitToChar[cut], b = unitToChar[cut + q.length];
+      if (a > at) frag.appendChild(document.createTextNode(chars.slice(at, a).join("")));
+      const mk = document.createElement("mark");
+      mk.className = "hit";
+      mk.textContent = chars.slice(a, b).join("");
+      frag.appendChild(mk);
+      Notes.hits.push(mk);
+      at = b;
+    }
+    if (at < chars.length) frag.appendChild(document.createTextNode(chars.slice(at).join("")));
+    node.parentNode.replaceChild(frag, node);
+  }
+  Notes.hits.sort((a, b) => a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1);
+  const n = Notes.hits.length;
+  if (!n) { count.textContent = t("notes.findNone"); return; }
+  document.getElementById("notesPrev").disabled = document.getElementById("notesNext").disabled = false;
+  if (Notes.hit < 0 || Notes.hit >= n) Notes.hit = n - 1; // the newest match first
+  notesShowHit(reveal);
+}
+
+function notesShowHit(reveal) {
+  const n = Notes.hits.length;
+  Notes.hits.forEach((m, i) => m.classList.toggle("cur", i === Notes.hit));
+  document.getElementById("notesCount").textContent = (Notes.hit + 1) + "/" + n;
+  if (reveal !== false && Notes.hits[Notes.hit]) Notes.hits[Notes.hit].scrollIntoView({ block: "center", behavior: "smooth" });
+}
+
+function notesStep(d) {
+  const n = Notes.hits.length;
+  if (!n) return;
+  Notes.hit = (Notes.hit + d + n) % n;
+  notesShowHit(true);
 }
 
 function noteBubble(n) {
@@ -146,7 +249,7 @@ async function noteOpenPath(p) {
 //   **bold**  *italic*  __underline__  ~~strike~~  ==highlight==  `code`
 //   ::red[coloured]  [text](https://…)  ![name](cmdex-img:ID)
 //   # / ## / ### headings, > quotes, - lists, 1. lists, - [ ] / - [x] tasks,
-//   ``` code blocks ```
+//   ```lang code blocks ```, coloured by highlight.js and only ever copied
 
 const NOTE_INLINE = /(`[^`\n]+`)|(!\[[^\]\n]*\]\(cmdex-img:\d+\))|(\[[^\]\n]+\]\(https?:\/\/[^\s)]+\))|(\*\*[^*\n]+\*\*)|(__[^_\n]+__)|(~~[^~\n]+~~)|(==[^=\n]+==)|(::(?:red|orange|yellow|green|blue|purple)\[[^\]\n]+\])|(\*[^*\s][^*\n]*\*)|(\bhttps?:\/\/[^\s<>()]+)/g;
 
@@ -156,7 +259,7 @@ function renderInline(text, out) {
   for (let m; (m = NOTE_INLINE.exec(text));) {
     if (m.index > last) out.appendChild(document.createTextNode(text.slice(last, m.index)));
     const s = m[0];
-    if (m[1]) out.appendChild(h("code", {}, s.slice(1, -1)));
+    if (m[1]) out.appendChild(h("code", {}, highlight(s.slice(1, -1), "")));
     else if (m[2]) out.appendChild(noteImage(+s.match(/cmdex-img:(\d+)/)[1], s.slice(2, s.indexOf("]"))));
     else if (m[3]) {
       const label = s.slice(1, s.indexOf("]")), href = s.slice(s.indexOf("](") + 2, -1);
@@ -197,7 +300,12 @@ function renderNote(body, n) {
       const lang = line.slice(3).trim(), code = [];
       for (i++; i < lines.length && !/^```/.test(lines[i]); i++) code.push(lines[i]);
       closeList();
-      root.appendChild(h("pre", { class: "note-code" }, lang ? h("span", { class: "lang" }, lang) : null, h("code", {}, code.join("\n"))));
+      const text = code.join("\n");
+      // shown and copied, never run: no button sends it to a terminal
+      root.appendChild(h("div", { class: "note-code" },
+        h("div", { class: "codebar" }, h("span", { class: "lang" }, lang || ""),
+          h("button", { type: "button", title: t("notes.copyCode"), onclick: e => { e.stopPropagation(); window.runtime.ClipboardSetText(text); setStatus(t("common.copied")); } }, "⧉ " + t("common.copy"))),
+        h("pre", {}, h("code", {}, highlight(text, lang)))));
       continue;
     }
     let m;
@@ -288,7 +396,7 @@ function drawCompose() {
   clear(box);
   const ta = h("textarea", { rows: 2, placeholder: t("notes.placeholder"), spellcheck: "true" });
   ta.value = draft;
-  const grow = () => { ta.style.height = "auto"; ta.style.height = Math.min(220, ta.scrollHeight + 2) + "px"; drawPreview(); };
+  const grow = () => { ta.style.height = "auto"; ta.style.height = Math.min(220, ta.scrollHeight + 2) + "px"; ta.style.overflowY = ta.scrollHeight > 220 ? "auto" : "hidden"; drawPreview(); };
   ta.oninput = grow;
   ta.onkeydown = e => {
     if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); notesSend(ta); return; }
@@ -332,8 +440,6 @@ async function notesSend(ta) {
     await api.AddNote(body, Notes.attach);
     ta.value = "";
     Notes.attach = "";
-    Notes.query = "";
-    document.getElementById("notesSearch").value = "";
     drawCompose();
     await notesLoad(true);
     const nta = document.querySelector("#notesCompose textarea");

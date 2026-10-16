@@ -27,15 +27,80 @@ function newTerm() {
   term.loadAddon(fit);
   term.open(pane);
   try { fit.fit(); } catch (e) { /* hidden pane */ }
-  // Ctrl+Shift+C / Ctrl+Shift+V copy and paste; plain Ctrl+C stays an interrupt.
+  // Ctrl+Shift+C / Ctrl+Shift+V copy and paste. Ctrl+C copies when text is
+  // selected (as Windows Terminal does) and is an interrupt otherwise.
   term.attachCustomKeyEventHandler(e => {
     if (e.type === "keydown" && e.ctrlKey && !e.shiftKey && !e.altKey && e.code === "KeyK") { focusSearch(); return false; }
+    if (e.type === "keydown" && e.ctrlKey && !e.shiftKey && !e.altKey && e.code === "KeyC" && term.hasSelection()) { termCopy(term); term.clearSelection(); return false; }
     if (e.type !== "keydown" || !e.ctrlKey || !e.shiftKey) return true;
-    if (e.code === "KeyC") { const s = term.getSelection(); if (s) window.runtime.ClipboardSetText(s); return false; }
-    if (e.code === "KeyV") { window.runtime.ClipboardGetText().then(txt => txt && term.paste(txt)); return false; }
+    if (e.code === "KeyC") { termCopy(term); return false; }
+    if (e.code === "KeyV") { termPaste(term); return false; }
     return true;
   });
+  pane.addEventListener("contextmenu", e => { e.preventDefault(); termMenu(e, term); });
   return { pane, term, fit };
+}
+
+// ---- copy and paste in a terminal -------------------------------------------------
+
+// termText is everything the terminal holds (its scrollback included).
+function termText(term) {
+  const buf = term.buffer.active, lines = [];
+  for (let y = 0; y < buf.length; y++) {
+    const line = buf.getLine(y);
+    if (!line) continue;
+    const s = line.translateToString(true);
+    // a wrapped line continues the one before
+    if (line.isWrapped && lines.length) lines[lines.length - 1] += s; else lines.push(s);
+  }
+  while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
+  return lines.join("\n");
+}
+
+function termCopy(term, all) {
+  const text = all ? termText(term) : term.getSelection();
+  if (!text) { setStatus(t("term.copyNothing")); return; }
+  window.runtime.ClipboardSetText(text);
+  setStatus(all ? t("term.copiedAll", { n: text.split("\n").length }) : t("common.copied"));
+}
+
+// termPaste pastes the clipboard. Several lines would run one after another
+// in most shells, so Cmdex asks first.
+async function termPaste(term) {
+  let text = await window.runtime.ClipboardGetText().catch(() => "");
+  if (!text) return;
+  const lines = text.replace(/\r\n/g, "\n").replace(/\n+$/, "").split("\n");
+  if (lines.length > 1) {
+    const preview = h("pre", { class: "preview mono", style: { maxHeight: "200px", overflow: "auto" } }, lines.slice(0, 12).join("\n") + (lines.length > 12 ? "\n…" : ""));
+    const ok = await dialog(t("term.pasteManyTitle"), [h("p", { class: "soft" }, t("term.pasteManyText", { n: lines.length })), preview],
+      [{ label: t("common.cancel"), value: false }, { label: t("term.pasteAnyway"), pri: true, value: true }]);
+    if (!ok) { term.focus(); return; }
+  }
+  term.paste(text);
+  term.focus();
+}
+
+function termMenu(e, term) {
+  let menu = document.getElementById("termMenu");
+  if (!menu) {
+    menu = h("div", { class: "term-menu", id: "termMenu", hidden: true, role: "menu" });
+    document.body.appendChild(menu);
+    document.addEventListener("click", () => { menu.hidden = true; });
+    document.addEventListener("keydown", ev => { if (ev.key === "Escape") menu.hidden = true; }, true);
+  }
+  clear(menu);
+  const sel = term.hasSelection();
+  const item = (label, key, fn, off) => menu.appendChild(h("button", { type: "button", role: "menuitem", disabled: off, onclick: ev => { ev.stopPropagation(); menu.hidden = true; fn(); } }, h("span", {}, label), key ? h("small", {}, key) : null));
+  item(t("term.menu.copy"), "Ctrl+C", () => { termCopy(term); term.clearSelection(); term.focus(); }, !sel);
+  item(t("term.menu.copyAll"), "", () => { termCopy(term, true); term.focus(); });
+  item(t("term.menu.paste"), "Ctrl+Shift+V", () => termPaste(term));
+  menu.appendChild(h("hr"));
+  item(t("term.menu.selectAll"), "", () => { term.selectAll(); term.focus(); });
+  item(t("term.menu.clear"), "", () => { term.clear(); term.focus(); });
+  menu.hidden = false;
+  const x = Math.min(e.clientX, innerWidth - menu.offsetWidth - 6), y = Math.min(e.clientY, innerHeight - menu.offsetHeight - 6);
+  menu.style.left = Math.max(4, x) + "px";
+  menu.style.top = Math.max(4, y) + "px";
 }
 
 async function openExternal(uri) {

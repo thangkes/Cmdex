@@ -320,7 +320,16 @@ table.params input[type=text], table.params select { width: 100%; min-height: 32
 .notes-panel.drop { outline: 2px dashed var(--accent); outline-offset: -6px; }
 .notes-panel header { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
 .notes-panel header b { font-size: 14px; }
-.notes-panel header input { flex: 1; min-width: 0; min-height: 30px; font-size: 12.5px; }
+.notes-find { flex: 1; min-width: 0; display: flex; align-items: center; gap: 2px; background: var(--bg); border: 1px solid var(--line-2); border-radius: 9px; padding: 0 3px 0 8px; height: 32px; }
+.notes-find:focus-within { border-color: var(--accent); }
+.notes-find .glass { color: var(--muted); font-size: 15px; }
+.notes-find input { flex: 1; min-width: 0; border: 0 !important; background: transparent !important; min-height: 28px !important; padding: 0 4px !important; font-size: 12.5px; box-shadow: none !important; outline: none; }
+.notes-find .count { font-size: 11.5px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; padding: 0 4px; }
+.notes-find .arrow { border: 0; background: transparent; color: var(--soft); width: 24px; height: 24px; border-radius: 6px; font-size: 10px; }
+.notes-find .arrow:hover:not(:disabled) { background: var(--panel-2); color: var(--text); }
+.notes-find .arrow:disabled { opacity: .35; cursor: default; }
+.note-body mark.hit { background: color-mix(in srgb, var(--accent) 35%, transparent); color: inherit; border-radius: 3px; padding: 0; }
+.note-body mark.hit.cur { background: var(--accent); color: var(--on-accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent); }
 .notes-panel button { font: inherit; cursor: pointer; }
 .notes-panel .ic { border: 1px solid var(--line-2); background: var(--panel-2); color: var(--text); border-radius: 8px; min-width: 30px; height: 30px; padding: 0 7px; font-size: 14px; }
 .notes-panel .ic.on { border-color: var(--accent); color: var(--accent); }
@@ -347,9 +356,25 @@ table.params input[type=text], table.params select { width: 100%; min-height: 32
 .note-body ul.tasks li.done span { text-decoration: line-through; color: var(--muted); }
 .note-body blockquote { margin: 2px 0; padding: 1px 10px; border-left: 3px solid var(--accent); color: var(--soft); white-space: pre-wrap; }
 .note-body code { font-family: "JetBrains Mono", "Cascadia Mono", Consolas, monospace; font-size: 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 0 4px; }
-.note-code { position: relative; margin: 4px 0; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; padding-top: 20px; overflow: auto; max-height: 300px; }
-.note-code code { border: 0; padding: 0; background: none; white-space: pre; display: block; }
-.note-code .lang { position: absolute; right: 8px; top: 4px; font-size: 10.5px; color: var(--muted); }
+.note-code { margin: 4px 0; background: var(--term); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.note-code .codebar { display: flex; justify-content: space-between; align-items: center; padding: 2px 6px 2px 10px; border-bottom: 1px solid var(--line); background: var(--panel-2); }
+.note-code .lang { font-size: 10.5px; color: var(--muted); text-transform: lowercase; }
+.note-code .codebar button { border: 0; background: transparent; color: var(--soft); font-size: 11px; border-radius: 5px; padding: 1px 6px; }
+.note-code .codebar button:hover { background: var(--panel); color: var(--text); }
+.note-code pre { margin: 0; padding: 8px 10px; overflow: auto; max-height: 320px; }
+.note-code code { border: 0; padding: 0; background: none; white-space: pre-wrap; overflow-wrap: anywhere; display: block; font-size: 12px; color: var(--text-2); }
+/* code colours: the same roles as the explainer, per theme */
+.tk-cmd { color: var(--code); font-weight: 600; }
+.tk-flag { color: var(--k-flag); }
+.tk-arg, .tk-str { color: var(--k-arg); }
+.tk-op { color: var(--k-op); }
+.tk-var { color: var(--info-text); }
+.tk-com { color: var(--muted); font-style: italic; }
+.tk-kw { color: var(--k-op); font-weight: 600; }
+.tk-fn { color: var(--info-text); }
+.tk-num { color: var(--accent-hi); }
+.tk-key { color: var(--k-flag); }
+.tk-prompt { color: var(--prompt); }
 .note-body mark { background: color-mix(in srgb, #ffd54a 55%, transparent); color: inherit; border-radius: 3px; padding: 0 2px; }
 .note-body a { color: var(--info-text); }
 .nc-red { color: #ff6b6b; }
@@ -384,3 +409,12 @@ table.params input[type=text], table.params select { width: 100%; min-height: 32
 .note-attach { align-self: flex-start; display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; color: var(--soft); background: var(--panel-2); border: 1px solid var(--line-2); border-radius: 999px; padding: 1px 4px 1px 9px; max-width: 100%; }
 .note-attach button { border: 0; background: transparent; color: var(--muted); font-size: 13px; }
 .note-hint { font-size: 10.5px; color: var(--muted); }
+
+/* terminal: right-click menu */
+.term-menu { position: fixed; z-index: 60; min-width: 230px; background: var(--panel); border: 1px solid var(--line-2); border-radius: 10px; padding: 4px; box-shadow: 0 10px 30px rgba(0,0,0,.4); }
+.term-menu[hidden] { display: none; }
+.term-menu button { display: flex; justify-content: space-between; gap: 16px; width: 100%; border: 0; background: transparent; color: var(--text); font: inherit; font-size: 13px; padding: 6px 10px; border-radius: 6px; cursor: pointer; text-align: left; }
+.term-menu button:hover:not(:disabled) { background: var(--panel-2); }
+.term-menu button:disabled { color: var(--faint); cursor: default; }
+.term-menu small { color: var(--muted); }
+.term-menu hr { border: 0; border-top: 1px solid var(--line); margin: 4px 2px; }
