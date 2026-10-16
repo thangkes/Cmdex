@@ -68,3 +68,56 @@ func TestMapSuggest(t *testing.T) {
 		t.Error("renamed outside the map")
 	}
 }
+
+// The map opens again on the folder last shown, kept encrypted; several
+// files go to the trash at once, a folder's contents with it.
+func TestMapLastFolderAndTrashMany(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "c.db")
+	s, err := store.Open(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	if err := s.SetUpKey(store.KeyKeychain, "test", nil, store.NewDatabaseKey()); err != nil {
+		t.Fatal(err)
+	}
+	a := &App{store: s}
+	if a.MapLastFolder() != "" {
+		t.Fatal("a folder before any scan")
+	}
+	base := t.TempDir()
+	if runtime.GOOS != "windows" {
+		t.Setenv("HOME", base)
+	}
+	root := filepath.Join(base, "witness-work-folder")
+	os.MkdirAll(filepath.Join(root, "sub"), 0o755)
+	for _, f := range []string{"a.txt", "b.txt", filepath.Join("sub", "c.txt")} {
+		os.WriteFile(filepath.Join(root, f), []byte("x"), 0o644)
+	}
+	if _, err := a.MapScan(root); err != nil {
+		t.Fatal(err)
+	}
+	if got := a.MapLastFolder(); got != filepath.Clean(root) {
+		t.Errorf("last folder %q", got)
+	}
+	if raw := s.Setting("map.root", ""); strings.Contains(raw, "witness-work-folder") {
+		t.Error("the folder is stored in clear")
+	}
+	if runtime.GOOS == "windows" && os.Getenv("CMDEX_TEST_RECYCLE") != "1" {
+		return // the rest moves files to the real Recycle Bin
+	}
+	res := a.MapTrashMany([]string{filepath.Join(root, "sub"), filepath.Join(root, "sub", "c.txt"), filepath.Join(root, "a.txt"), root, "relative.txt"})
+	errs := map[string]string{}
+	for _, r := range res {
+		errs[filepath.Base(r.Path)] = r.Error
+	}
+	if errs["sub"] != "" || errs["c.txt"] != "" || errs["a.txt"] != "" || errs[filepath.Base(root)] == "" || len(res) != 4 {
+		t.Errorf("results %+v", res)
+	}
+	if _, err := os.Stat(filepath.Join(root, "a.txt")); err == nil {
+		t.Error("a.txt still there")
+	}
+	if _, err := os.Stat(filepath.Join(root, "b.txt")); err != nil {
+		t.Error("b.txt was not chosen but is gone")
+	}
+}

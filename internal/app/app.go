@@ -92,6 +92,7 @@ func (a *App) ready() {
 			a.dbErr = err.Error() // the user's own library still works
 		}
 		a.coll.ScrubBackup() // a copy made by Cmdex 0.1.3 before that
+		a.store.DropLooseNoteImages()
 		go a.collectLoop()
 		go a.updateLoop()
 	})

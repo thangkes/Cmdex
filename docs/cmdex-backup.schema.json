@@ -16,7 +16,8 @@
     "connections": {"type": "array", "items": {"$ref": "#/$defs/connection"}},
     "collected": {"type": "array", "items": {"$ref": "#/$defs/collected"}},
     "settings": {"type": "object", "additionalProperties": {"type": "string"}},
-    "baseState": {"type": "array", "items": {"$ref": "#/$defs/baseState"}}
+    "baseState": {"type": "array", "items": {"$ref": "#/$defs/baseState"}},
+    "notes": {"type": "array", "items": {"$ref": "#/$defs/note"}}
   },
   "$defs": {
     "platform": {"enum": ["windows", "linux", "both", "cisco", "pfsense"]},
@@ -51,6 +52,25 @@
         "created": {"type": "integer"},
         "updated": {"type": "integer"},
         "baseKey": {"type": "string"}
+      }
+    },
+    "note": {
+      "type": "object",
+      "required": ["body", "created"],
+      "properties": {
+        "body": {"type": "string", "minLength": 1, "description": "Markup text; images are shown as ![name](cmdex-img:ID), ID being one of this note's images"},
+        "path": {"type": "string"},
+        "created": {"type": "integer"},
+        "updated": {"type": "integer"},
+        "images": {"type": "array", "items": {
+          "type": "object",
+          "required": ["id", "data"],
+          "properties": {
+            "id": {"type": "integer"},
+            "mime": {"enum": ["image/png", "image/jpeg", "image/gif", "image/webp"]},
+            "data": {"type": "string", "contentEncoding": "base64"}
+          }
+        }}
       }
     },
     "baseState": {

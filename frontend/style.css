@@ -256,7 +256,7 @@ table.params input[type=text], table.params select { width: 100%; min-height: 32
 .map-legend[hidden] { display: none; }
 .map-card i, .map-tip i, .map-legend i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex: none; }
 .map-legend span { display: flex; align-items: center; gap: 6px; }
-.map-card { position: absolute; right: 10px; bottom: 10px; z-index: 3; width: min(390px, calc(100% - 150px)); max-height: 46%; overflow: auto; background: rgba(12,14,24,.9); border: 1px solid rgba(160,180,255,.25); border-radius: 12px; padding: 9px 11px; backdrop-filter: blur(6px); }
+.map-card { position: absolute; right: 74px; bottom: 10px; z-index: 3; width: min(390px, calc(100% - 214px)); max-height: 46%; overflow: auto; background: rgba(12,14,24,.9); border: 1px solid rgba(160,180,255,.25); border-radius: 12px; padding: 9px 11px; backdrop-filter: blur(6px); }
 .map-card .head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .map-card .head b { display: flex; align-items: center; gap: 6px; min-width: 0; font-weight: 600; }
 .map-card .head .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -301,3 +301,86 @@ table.params input[type=text], table.params select { width: 100%; min-height: 32
 .map-hole.flash .photon { stroke: #fff; stroke-width: 5; }
 .map-hole-label { fill: #8a90ab; font-size: 10.5px; }
 @media (prefers-reduced-motion: reduce) { .map-twinkle, .map-hole .disk, .map-link.trace { animation: none; } }
+
+/* folder map: several stars at once */
+.map-lasso { fill: rgba(127,224,255,.08); stroke: #7fe0ff; stroke-width: 1; stroke-dasharray: 4 3; }
+.map-card .chips { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; }
+.map-card .chip { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; background: rgba(127,224,255,.08); border: 1px solid rgba(127,224,255,.25); border-radius: 999px; padding: 1px 8px; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.map-card .chip.more { color: #a5abc2; }
+.map-card .note { color: #8a90ab; font-size: 11.5px; margin: 4px 0 0; }
+
+/* notes: the chat bubble */
+.notes-fab { position: fixed; right: 18px; bottom: 38px; z-index: 40; width: 50px; height: 50px; border-radius: 50%; border: 0; cursor: pointer;
+  background: var(--accent); color: var(--on-accent); display: grid; place-items: center; box-shadow: 0 6px 18px rgba(0,0,0,.35); transition: transform .15s; }
+.notes-fab:hover { transform: scale(1.06); }
+.notes-fab[aria-expanded="true"] { transform: scale(.92); }
+.notes-panel { position: fixed; right: 18px; bottom: 98px; z-index: 41; width: min(420px, calc(100vw - 36px)); height: min(620px, calc(100vh - 140px));
+  display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line-2); border-radius: 16px; box-shadow: 0 16px 48px rgba(0,0,0,.45); overflow: hidden; }
+.notes-panel[hidden] { display: none; }
+.notes-panel.drop { outline: 2px dashed var(--accent); outline-offset: -6px; }
+.notes-panel header { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+.notes-panel header b { font-size: 14px; }
+.notes-panel header input { flex: 1; min-width: 0; min-height: 30px; font-size: 12.5px; }
+.notes-panel button { font: inherit; cursor: pointer; }
+.notes-panel .ic { border: 1px solid var(--line-2); background: var(--panel-2); color: var(--text); border-radius: 8px; min-width: 30px; height: 30px; padding: 0 7px; font-size: 14px; }
+.notes-panel .ic.on { border-color: var(--accent); color: var(--accent); }
+.notes-list { flex: 1; overflow: auto; padding: 10px 12px 6px; display: flex; flex-direction: column; gap: 6px; }
+.notes-empty { margin: auto; color: var(--muted); font-size: 13px; text-align: center; padding: 20px; }
+.notes-day { align-self: center; font-size: 11px; color: var(--muted); background: var(--panel-2); border-radius: 999px; padding: 2px 10px; margin: 6px 0 2px; }
+.note-row { display: flex; justify-content: flex-end; align-items: flex-start; gap: 6px; }
+.note-row:hover .note-acts { opacity: 1; }
+.note-acts { display: flex; flex-direction: column; gap: 2px; opacity: 0; transition: opacity .15s; }
+.note-acts button { border: 0; background: transparent; color: var(--muted); border-radius: 6px; width: 24px; height: 22px; font-size: 12px; }
+.note-acts button:hover { background: var(--panel-2); color: var(--text); }
+.note-acts button.danger:hover { color: var(--bad-text); }
+.note-bubble { max-width: 86%; background: color-mix(in srgb, var(--accent) 16%, var(--panel-2)); border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  border-radius: 14px 14px 4px 14px; padding: 7px 11px 5px; font-size: 13.5px; line-height: 1.5; color: var(--text); overflow-wrap: anywhere; min-width: 0; }
+.note-body p { margin: 0; white-space: pre-wrap; }
+.note-body .gap { height: 6px; }
+.note-body h3, .note-body h4, .note-body h5 { margin: 2px 0; line-height: 1.3; }
+.note-body h3 { font-size: 16px; }
+.note-body h4 { font-size: 14.5px; }
+.note-body h5 { font-size: 13.5px; }
+.note-body ul, .note-body ol { margin: 2px 0; padding-left: 20px; }
+.note-body ul.tasks { list-style: none; padding-left: 2px; }
+.note-body ul.tasks li { display: flex; gap: 6px; align-items: flex-start; }
+.note-body ul.tasks li.done span { text-decoration: line-through; color: var(--muted); }
+.note-body blockquote { margin: 2px 0; padding: 1px 10px; border-left: 3px solid var(--accent); color: var(--soft); white-space: pre-wrap; }
+.note-body code { font-family: "JetBrains Mono", "Cascadia Mono", Consolas, monospace; font-size: 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 0 4px; }
+.note-code { position: relative; margin: 4px 0; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; padding-top: 20px; overflow: auto; max-height: 300px; }
+.note-code code { border: 0; padding: 0; background: none; white-space: pre; display: block; }
+.note-code .lang { position: absolute; right: 8px; top: 4px; font-size: 10.5px; color: var(--muted); }
+.note-body mark { background: color-mix(in srgb, #ffd54a 55%, transparent); color: inherit; border-radius: 3px; padding: 0 2px; }
+.note-body a { color: var(--info-text); }
+.nc-red { color: #ff6b6b; }
+.nc-orange { color: #ff9f43; }
+.nc-yellow { color: #f6c945; }
+.nc-green { color: #4cd38a; }
+.nc-blue { color: #5aa9ff; }
+.nc-purple { color: #b18cff; }
+.note-img { display: block; max-width: 100%; max-height: 260px; border-radius: 8px; margin: 4px 0; cursor: zoom-in; }
+.note-img-big { max-width: min(80vw, 1100px); max-height: 70vh; display: block; margin: 0 auto; border-radius: 8px; }
+.note-missing { color: var(--muted); font-size: 12px; }
+.note-path { display: inline-flex; align-items: center; gap: 3px; margin-top: 4px; max-width: 100%; border: 1px solid var(--line-2); background: var(--panel); color: var(--soft); border-radius: 999px; padding: 1px 9px; font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.note-meta { text-align: right; font-size: 10.5px; color: var(--muted); margin-top: 2px; }
+.note-edit { width: 100%; min-width: 260px; resize: vertical; font: inherit; font-size: 13px; background: var(--bg); color: var(--text); border: 1px solid var(--accent); border-radius: 8px; padding: 6px 8px; }
+.note-edit-acts { display: flex; justify-content: flex-end; gap: 6px; margin-top: 6px; }
+.note-edit-acts button { border: 1px solid var(--line-2); background: var(--panel-2); color: var(--text); border-radius: 7px; padding: 3px 12px; }
+.note-edit-acts button.pri { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+.notes-compose { border-top: 1px solid var(--line); padding: 8px 10px 8px; display: flex; flex-direction: column; gap: 6px; }
+.note-tools { display: flex; flex-wrap: wrap; gap: 2px; align-items: center; }
+.note-tools button { border: 0; background: transparent; color: var(--soft); border-radius: 6px; min-width: 26px; height: 24px; font-size: 12.5px; padding: 0 5px; }
+.note-tools button:hover { background: var(--panel-2); color: var(--text); }
+.note-tools.compact { margin-bottom: 4px; }
+.note-colors { display: inline-flex; gap: 0; margin-left: 4px; }
+.nc-dot { width: 11px; height: 11px; border-radius: 50%; display: inline-block; background: currentColor; }
+.note-preview { max-height: 160px; overflow: auto; border: 1px dashed var(--line-2); border-radius: 8px; padding: 6px 9px; font-size: 13px; }
+.note-preview[hidden] { display: none; }
+.note-input { display: flex; gap: 6px; align-items: flex-end; }
+.note-input textarea { flex: 1; min-width: 0; resize: none; font: inherit; font-size: 13.5px; line-height: 1.45; background: var(--bg); color: var(--text); border: 1px solid var(--line-2); border-radius: 12px; padding: 8px 10px; max-height: 220px; }
+.note-input textarea:focus { outline: none; border-color: var(--accent); }
+.note-side { display: flex; gap: 4px; }
+.note-side .send { width: 36px; height: 36px; border-radius: 50%; border: 0; background: var(--accent); color: var(--on-accent); font-size: 15px; }
+.note-attach { align-self: flex-start; display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; color: var(--soft); background: var(--panel-2); border: 1px solid var(--line-2); border-radius: 999px; padding: 1px 4px 1px 9px; max-width: 100%; }
+.note-attach button { border: 0; background: transparent; color: var(--muted); font-size: 13px; }
+.note-hint { font-size: 10.5px; color: var(--muted); }

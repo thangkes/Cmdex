@@ -163,6 +163,8 @@ For interface work without the desktop shell: `CMDEX_DB=./tmp/cmdex.db go run ./
 - **Hover** a star for its type, size, date and path; the path from the core lights up. No need to aim: the nearest star is picked. **Find** traces a file by name.
 - **Click a folder** to fly to it, and click again to make it the new core. Four layers are read at a time, so large drives stay light.
 - **File actions** (right-click): open, show in the file manager, rename, new folder, copy the path.
+- **Several at once**: Ctrl+click adds a star, Shift+drag chooses every star in a box; throw the whole group into the black hole with one confirmation.
+- The map **opens where you left it**: the folder shown last is remembered (encrypted).
 - **The black hole is the trash.** Drag a star into it and the file is stretched into a strand that winds into the hole, while it goes to the system trash (restorable). Deleting never bypasses the trash.
 - **Commands for a file** come from your library (`python …`, `java -jar …`, `mvn package` for a `pom.xml`) and are pasted into the terminal.
 - **Tree** arranges the same stars as branches, from the core on the left to the third layer on the right; switching between the two views morphs one into the other.
@@ -172,6 +174,10 @@ For interface work without the desktop shell: `CMDEX_DB=./tmp/cmdex.db go run ./
 | <img src="docs/img/map-blackhole.gif" width="380" alt="A file star stretched into a strand and pulled into the black hole"> | <img src="docs/img/map-morph.gif" width="420" alt="The galaxy unrolling into branches and curling back"> |
 
 <p align="center"><img src="docs/img/map-tree.png" width="720" alt="The tree view: branches from the core on the left, a hovered photo and its path traced"></p>
+
+### Notes
+
+The chat bubble in the corner (Ctrl+Shift+N) keeps notes like messages: text in any language with **bold**, *italic*, __underline__, ~~strike~~, ==highlight==, colours, headings, lists, tasks you can tick, quotes and code blocks, plus images you paste or drop. A note can be pinned to the file or folder chosen on the map. Notes and their images are encrypted in your database and travel in backups.
 
 ### Packs
 
@@ -327,6 +333,8 @@ sh dist/install.sh
 - **Rê chuột** vào ngôi sao để xem loại, dung lượng, ngày sửa và đường dẫn; đường đi từ lõi sẽ sáng lên. Không cần trỏ trúng, Cmdex tự bắt ngôi sao gần nhất. Ô **Tìm** giúp truy vết file theo tên.
 - **Bấm thư mục** để bay tới, bấm lần nữa để nó thành lõi mới. Mỗi lần chỉ đọc 4 lớp nên ổ lớn vẫn nhẹ.
 - **Thao tác file** (chuột phải): mở, hiện trong Explorer, đổi tên, tạo thư mục, chép đường dẫn.
+- **Nhiều file cùng lúc**: Ctrl+bấm để thêm từng ngôi sao, Shift+kéo để chọn mọi sao trong khung; ném cả nhóm vào hố đen chỉ với một lần xác nhận.
+- Bản đồ **mở lại đúng chỗ bạn đang làm**: thư mục xem lần cuối được nhớ (mã hoá).
 - **Hố đen là Thùng rác.** Kéo ngôi sao thả vào hố đen: file bị kéo thành sợi xoắn vào hố đen, còn thực tế là vào Thùng rác của hệ điều hành (khôi phục được). Không bao giờ xoá vĩnh viễn.
 - **Lệnh cho file** lấy từ thư viện (`python …`, `java -jar …`, `mvn package` cho `pom.xml`) và được dán vào terminal.
 - **Cây thư mục** xếp chính các ngôi sao đó thành nhánh, từ lõi bên trái sang lớp thứ ba bên phải; chuyển qua lại giữa hai chế độ có hiệu ứng thiên hà duỗi thành nhánh và cuộn lại.
@@ -336,6 +344,10 @@ sh dist/install.sh
 | <img src="docs/img/map-blackhole.gif" width="380" alt="Ngôi sao file bị kéo thành sợi và hút vào hố đen"> | <img src="docs/img/map-morph.gif" width="420" alt="Thiên hà duỗi thành nhánh rồi cuộn lại"> |
 
 <p align="center"><img src="docs/img/map-tree.png" width="720" alt="Chế độ cây: các nhánh từ lõi bên trái, một ảnh đang được rê chuột và truy vết"></p>
+
+### Ghi chú
+
+Bong bóng chat ở góc (Ctrl+Shift+N) lưu ghi chú như tin nhắn: chữ ngôn ngữ nào cũng được, có **đậm**, *nghiêng*, __gạch chân__, ~~gạch ngang~~, ==tô sáng==, chữ màu, tiêu đề, danh sách, việc cần làm tick được, trích dẫn và khối code, cùng ảnh dán hoặc kéo thả vào. Ghi chú có thể gắn với file hay thư mục đang chọn trên bản đồ. Ghi chú và ảnh được mã hoá trong database của bạn và có trong bản sao lưu.
 
 ### Gói công cụ
 

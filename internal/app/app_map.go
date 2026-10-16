@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"time"
 
@@ -16,8 +17,8 @@ import (
 
 // The folder map (Work ▸ Map): a folder on this computer and three layers
 // below it, and file actions the user starts there. Changes are limited to
-// the folder last scanned (fsmap.Inside); paths are never stored or
-// collected.
+// the folder last scanned (fsmap.Inside). Paths are never collected; only
+// the folder last opened is kept, encrypted, to open the map there again.
 
 // MapScan reads a folder for the map ("" and "~" are the home folder) and makes it
 // the folder file actions are limited to.
@@ -38,7 +39,20 @@ func (a *App) MapScan(path string) (*fsmap.Map, error) {
 	a.mu.Lock()
 	a.mapRoot = m.Root
 	a.mu.Unlock()
+	a.store.SetSealedSetting("map.root", m.Root)
 	return m, nil
+}
+
+// MapLastFolder is the folder the map showed last, if it still exists.
+func (a *App) MapLastFolder() string {
+	p := a.store.SealedSetting("map.root")
+	if p == "" || !filepath.IsAbs(p) {
+		return ""
+	}
+	if fi, err := os.Stat(p); err != nil || !fi.IsDir() {
+		return ""
+	}
+	return p
 }
 
 // MapPickFolder asks for a folder to show.
@@ -72,6 +86,46 @@ func (a *App) MapMkdir(parent, name string) (string, error) {
 
 // MapTrash moves a file or folder to the trash.
 func (a *App) MapTrash(path string) error { return fsmap.Trash(a.root(), path) }
+
+// TrashResult is the outcome for one file of MapTrashMany.
+type TrashResult struct {
+	Path  string `json:"path"`
+	Error string `json:"error,omitempty"`
+}
+
+// MapTrashMany moves several files and folders to the trash, one by one;
+// one that fails does not stop the others. A path inside another one of
+// the list goes with it.
+func (a *App) MapTrashMany(paths []string) []TrashResult {
+	root := a.root()
+	clean := make([]string, 0, len(paths))
+	for _, p := range paths {
+		if filepath.IsAbs(p) {
+			clean = append(clean, filepath.Clean(p))
+		}
+	}
+	sort.Strings(clean)
+	out := []TrashResult{}
+	var done []string
+	for _, p := range clean {
+		inside := false
+		for _, d := range done {
+			inside = inside || fsmap.Inside(d, p)
+		}
+		if inside {
+			out = append(out, TrashResult{Path: p})
+			continue
+		}
+		r := TrashResult{Path: p}
+		if err := fsmap.Trash(root, p); err != nil {
+			r.Error = err.Error()
+		} else {
+			done = append(done, p)
+		}
+		out = append(out, r)
+	}
+	return out
+}
 
 // MapRunnable reports whether opening the file runs a program.
 func (a *App) MapRunnable(path string) bool {

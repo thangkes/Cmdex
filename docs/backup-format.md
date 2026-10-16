@@ -85,6 +85,12 @@ Collected command lines are stored with secrets already masked (`•••••
     {"kind": "command", "key": "linux ls -la {path}", "uses": 9},       // key: "<platform> <template>"
     {"kind": "command", "key": "windows ipconfig /all", "hidden": true}, // deleted: stays deleted after updates
     {"kind": "rule", "key": "category ssh, scp", "hidden": true}         // key: "<kind> <match>"
+  ],
+
+  "notes": [                         // the chat bubble's notes (since 0.1.10)
+    {"body": "Deploy **checklist**\n- [x] backup\n![screen](cmdex-img:3)", "path": "D:\\Work\\site",
+     "created": 1760000000, "updated": 1760000300,
+     "images": [{"id": 3, "mime": "image/png", "data": "iVBORw0KGgo…"}]}   // id: as the body names it
   ]
 }
 ```
@@ -98,6 +104,7 @@ Collected command lines are stored with secrets already masked (`•••••
 | Rules, connections, collected groups | added if missing | the file's |
 | Collected run counts | the larger one | the file's |
 | Settings | taken from the file | taken from the file |
+| Notes (same time and text) | added if missing; images get new IDs and the text follows | the file's |
 | Starter commands deleted / run counts (`baseState`) | deleted on either side stays deleted; the larger count | the file's |
 
 Version 1 files (Cmdex 0.1) held the starter commands as your own: copies you never edited are matched to the starter commands (only their run counts are kept), edited ones become your commands.

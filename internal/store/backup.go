@@ -40,6 +40,7 @@ type Backup struct {
 	Collected   []BackupCollected   `json:"collected"`
 	Settings    map[string]string   `json:"settings"`
 	BaseState   []BaseState         `json:"baseState"`
+	Notes       []Note              `json:"notes,omitempty"`
 }
 
 // BaseState is what the user did to one default: Kind "command" (Key is
@@ -83,6 +84,7 @@ type BackupResult struct {
 	Connections int `json:"connections"`
 	Collected   int `json:"collected"`
 	Settings    int `json:"settings"`
+	Notes       int `json:"notes"`
 	Rejected    int `json:"rejected"` // commands refused: empty, or hiding characters (CheckCommandText)
 }
 
@@ -90,7 +92,8 @@ type BackupResult struct {
 // read positions in this computer's history files, nor help-lookup misses.
 func portableSetting(key string) bool {
 	return !strings.HasPrefix(key, "collect.offset.") && !strings.HasPrefix(key, "help.miss.") &&
-		!strings.HasPrefix(key, "crypto.") // this database's key: never in a backup, never replaced by one
+		!strings.HasPrefix(key, "crypto.") && // this database's key: never in a backup, never replaced by one
+		!strings.HasPrefix(key, "map.") // this computer's folders (sealed with its key)
 }
 
 // ExportBackup returns the user's database.
@@ -191,6 +194,15 @@ func (s *Store) ExportBackup(app string) (Backup, error) {
 		vr.Close()
 		b.Collected = append(b.Collected, g.bc)
 	}
+	if b.Notes, err = s.Notes(""); err != nil {
+		return b, err
+	}
+	for i := range b.Notes {
+		if b.Notes[i].Images, err = s.noteImages(b.Notes[i].ID); err != nil {
+			return b, err
+		}
+		b.Notes[i].ID = 0 // IDs belong to this database
+	}
 	set, err := s.db.Query("SELECT key, value FROM settings ORDER BY key")
 	if err != nil {
 		return b, err
@@ -261,6 +273,10 @@ func (s *Store) importBackup(b Backup, replace bool) (BackupResult, error) {
 	if err != nil {
 		return r, err
 	}
+	haveNotes, err := s.Notes("")
+	if err != nil {
+		return r, err
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	tx, err := s.db.Begin()
@@ -271,7 +287,8 @@ func (s *Store) importBackup(b Backup, replace bool) (BackupResult, error) {
 
 	if replace {
 		for _, q := range []string{"DELETE FROM variants", "DELETE FROM collected", "DELETE FROM commands", "DELETE FROM explain",
-			"DELETE FROM rules", "DELETE FROM synonyms", "DELETE FROM connections", "DELETE FROM base_state", "DELETE FROM settings WHERE key NOT LIKE 'collect.offset.%' AND key NOT LIKE 'crypto.%'"} {
+			"DELETE FROM rules", "DELETE FROM synonyms", "DELETE FROM connections", "DELETE FROM base_state", "DELETE FROM notes", "DELETE FROM note_images",
+			"DELETE FROM settings WHERE key NOT LIKE 'collect.offset.%' AND key NOT LIKE 'crypto.%' AND key NOT LIKE 'map.%'"} {
 			if _, err := tx.Exec(q); err != nil {
 				return r, err
 			}
@@ -500,6 +517,31 @@ func (s *Store) importBackup(b Backup, replace bool) (BackupResult, error) {
 			x.Kind, x.Key, x.Uses, x.Hidden); err != nil {
 			return r, err
 		}
+	}
+
+	// notes: a merge skips those already here (same time and text)
+	seen := map[string]bool{}
+	if !replace {
+		for _, n := range haveNotes {
+			seen[noteKey(n)] = true
+		}
+	}
+	for _, n := range b.Notes {
+		n.Body = strings.TrimRight(n.Body, " \t\r\n")
+		if checkNote(n.Body, n.Path) != nil || seen[noteKey(n)] {
+			continue
+		}
+		seen[noteKey(n)] = true
+		if n.Created <= 0 {
+			n.Created = now()
+		}
+		if n.Updated < n.Created {
+			n.Updated = n.Created
+		}
+		if err := s.importNote(tx, n); err != nil {
+			return r, err
+		}
+		r.Notes++
 	}
 
 	for k, v := range b.Settings {

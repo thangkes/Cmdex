@@ -320,6 +320,23 @@ var migrations = []string{
 	INSERT INTO variants_new(collected_id, raw, raw_mac, count) SELECT collected_id, raw, raw, count FROM variants;
 	DROP TABLE variants;
 	ALTER TABLE variants_new RENAME TO variants;`,
+	// 6: notes (the chat bubble); body and path are sealed
+	`CREATE TABLE notes(
+		id INTEGER PRIMARY KEY,
+		body TEXT NOT NULL,
+		path TEXT NOT NULL DEFAULT '',
+		created INTEGER NOT NULL,
+		updated INTEGER NOT NULL
+	);
+	CREATE TABLE note_images(
+		id INTEGER PRIMARY KEY,
+		note_id INTEGER NOT NULL DEFAULT 0,
+		mime TEXT NOT NULL,
+		data TEXT NOT NULL,
+		created INTEGER NOT NULL
+	);
+	CREATE INDEX note_images_note ON note_images(note_id);
+	CREATE TRIGGER notes_drop_images AFTER DELETE ON notes BEGIN DELETE FROM note_images WHERE note_id = old.id; END;`,
 }
 
 func (s *Store) migrate() error { return s.migrateTo(len(migrations)) }
@@ -387,6 +404,22 @@ func (s *Store) SetSetting(key, value string) error {
 	defer s.mu.Unlock()
 	_, err := s.db.Exec("INSERT INTO settings(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", key, value)
 	return err
+}
+
+// SealedSetting reads a setting stored with SetSealedSetting ("" when unset
+// or unreadable).
+func (s *Store) SealedSetting(key string) string {
+	v, err := s.open("settings."+key, s.Setting(key, ""))
+	if err != nil {
+		return ""
+	}
+	return v
+}
+
+// SetSealedSetting stores a private setting (a folder of this computer)
+// encrypted like the user's commands.
+func (s *Store) SetSealedSetting(key, value string) error {
+	return s.SetSetting(key, s.seal("settings."+key, value))
 }
 
 // ---- commands ----------------------------------------------------------------

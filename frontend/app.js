@@ -38,6 +38,7 @@ async function setLang(lang) {
   if (App.view === "collect") renderCollect();
   if (App.view === "library") renderLibrary();
   refreshCount();
+  relabelNotes();
 }
 
 function offerUpdate(r) {
@@ -116,6 +117,7 @@ async function start() {
   }
   initWork();
   initProtection();
+  initNotes();
   await setLang(App.lang);
   showView("work");
   refreshCollectBadge();

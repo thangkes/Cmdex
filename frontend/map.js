@@ -6,7 +6,7 @@
 // local terminal, never run.
 
 const FMap = {
-  m: null, mode: "galaxy", sel: null, trace: null, hover: null, pos: {},
+  m: null, mode: "galaxy", sel: null, trace: null, hover: null, pos: {}, multi: new Set(), // keys of the stars chosen together
   loading: false, started: false, angle: 0, auto: true, renaming: false, confirming: false,
 };
 
@@ -71,7 +71,10 @@ function initMap() {
   q.oninput = () => mapFind(q.value);
   q.onkeydown = e => { if (e.key === "Enter" && FMap.trace) { mapSelect(FMap.trace); Galaxy.fly(FMap.trace.children ? FMap.trace : (FMap.trace.parent || FMap.trace), false); } };
   pane.addEventListener("keydown", e => {
-    if (e.target.tagName === "INPUT" || !FMap.sel) return;
+    if (e.target.tagName === "INPUT") return;
+    if (e.key === "Escape" && FMap.multi.size) { e.preventDefault(); mapMultiClear(); return; }
+    if (e.key === "Delete" && FMap.multi.size) { e.preventDefault(); FMap.confirming = true; mapDrawCard(); return; }
+    if (!FMap.sel) return;
     if (e.key === "F2") { e.preventDefault(); mapAct("rename", FMap.sel); }
     if (e.key === "Delete" && FMap.sel.depth && !FMap.sel.data.more) { e.preventDefault(); mapAct("trash", FMap.sel); }
   });
@@ -97,7 +100,12 @@ function relabelMap() {
 // opens the folder of the local terminal (or the home folder).
 function mapShow() {
   if (!document.getElementById("mapPane").childElementCount) initMap();
-  if (!FMap.started) { FMap.started = true; mapLoad(mapTerminalDir() || ""); return; }
+  if (!FMap.started) {
+    FMap.started = true;
+    // the folder used last (kept encrypted), else the terminal's, else home
+    api.MapLastFolder().catch(() => "").then(last => mapLoad(last || mapTerminalDir() || ""));
+    return;
+  }
   Galaxy.resize();
 }
 
@@ -156,7 +164,7 @@ async function mapLoad(path, keepSel) {
       if (n.more) kids.push({ name: "+" + n.more, more: n.more, size: n.moreSize || 0, mod: 0 });
       return kids;
     });
-    if (centreChanged) FMap.pos = {};
+    if (centreChanged) { FMap.pos = {}; FMap.multi.clear(); }
     const want = keepSel || "";
     FMap.sel = want ? mapByPath(want) : null;
     FMap.trace = FMap.sel;
@@ -247,10 +255,83 @@ function mapTip(e, d) {
   tip.style.top = Math.max(6, y) + "px";
 }
 
+// ---- several stars at once ---------------------------------------------------------
+
+function mapMultiNodes() {
+  if (!FMap.root) return [];
+  return FMap.root.descendants().filter(d => FMap.multi.has(mapKey(d)));
+}
+
+// mapToggle adds a star to the group or takes it out (Ctrl+click); the star
+// chosen before joins the group first.
+function mapToggle(d) {
+  if (!d || !d.depth || d.data.more) return;
+  if (!FMap.multi.size && FMap.sel && FMap.sel !== d && FMap.sel.depth && !FMap.sel.data.more) FMap.multi.add(mapKey(FMap.sel));
+  const k = mapKey(d);
+  if (FMap.multi.has(k)) FMap.multi.delete(k); else FMap.multi.add(k);
+  FMap.confirming = FMap.renaming = false;
+  Galaxy.paint();
+  mapDrawCard();
+}
+
+function mapMultiAdd(nodes) {
+  for (const d of nodes) if (d.depth && !d.data.more) FMap.multi.add(mapKey(d));
+  FMap.confirming = FMap.renaming = false;
+  Galaxy.paint();
+  mapDrawCard();
+}
+
+function mapMultiClear() {
+  FMap.multi.clear();
+  FMap.confirming = false;
+  Galaxy.unhold();
+  Galaxy.paint();
+  mapDrawCard();
+}
+
+function mapDrawGroup(card) {
+  const list = mapMultiNodes();
+  const files = list.reduce((n, d) => n + (d.data.dir ? (d.data.files || 0) : 1), 0);
+  const size = list.reduce((n, d) => n + (d.data.size || 0), 0);
+  card.appendChild(h("div", { class: "head" }, h("b", {}, t("map.group.title", { n: list.length })), h("span", { class: "muted" }, mapSize(size))));
+  const chips = h("div", { class: "chips" });
+  list.slice(0, 10).forEach(d => chips.appendChild(h("span", { class: "chip", title: mapPath(d) }, h("i", { style: { background: mapColor(d) } }), d.data.name)));
+  if (list.length > 10) chips.appendChild(h("span", { class: "chip more" }, "+" + (list.length - 10)));
+  card.appendChild(chips);
+  if (FMap.confirming) {
+    card.appendChild(h("p", { class: "soft" }, t("map.group.trashQ", { n: list.length, f: files })));
+    card.appendChild(h("div", { class: "acts" },
+      h("button", { type: "button", onclick: e => { e.stopPropagation(); FMap.confirming = false; Galaxy.unhold(); mapDrawCard(); } }, t("common.cancel")),
+      h("button", { type: "button", class: "danger", onclick: e => { e.stopPropagation(); mapTrashGroup(); } }, "◉ " + t("map.group.trashGo", { n: list.length }))));
+    return;
+  }
+  card.appendChild(h("div", { class: "acts" },
+    h("button", { type: "button", class: "danger", onclick: e => { e.stopPropagation(); FMap.confirming = true; mapDrawCard(); } }, "◉ " + t("map.group.trash", { n: list.length })),
+    h("button", { type: "button", onclick: e => { e.stopPropagation(); window.runtime.ClipboardSetText(list.map(mapPath).join("\n")); setStatus(t("map.copied")); } }, t("map.group.copy")),
+    h("button", { type: "button", onclick: e => { e.stopPropagation(); mapMultiClear(); } }, t("map.group.clear"))));
+  card.appendChild(h("p", { class: "note" }, t("map.group.hint")));
+}
+
+// mapTrashGroup throws every chosen star into the black hole at once.
+async function mapTrashGroup() {
+  const list = mapMultiNodes();
+  if (!list.length) return;
+  FMap.confirming = false;
+  const anim = Galaxy.devourMany(list);
+  const res = await api.MapTrashMany(list.map(mapPath)).catch(e => [{ path: "", error: errText(e) }]);
+  await anim;
+  const bad = res.filter(r => r.error);
+  FMap.multi.clear();
+  if (bad.length) setStatus(t("map.group.partial", { ok: res.length - bad.length, bad: bad.length, err: bad[0].error }), true);
+  else setStatus(t("map.group.trashed", { n: res.length }));
+  await mapLoad(FMap.m.root, FMap.m.root);
+}
+
 async function mapDrawCard() {
   const card = clear(document.getElementById("mapCard"));
   const d = FMap.sel;
   if (!FMap.m) return;
+  if (FMap.multi.size) { mapDrawGroup(card); return; }
   if (!d) { card.appendChild(h("span", { class: "soft" }, t("map.hint"))); return; }
   const n = d.data;
   if (n.more) {
@@ -361,6 +442,16 @@ function mapMenu(e, d) {
   e.preventDefault(); e.stopPropagation();
   mapTip(null);
   if (d.data.more) return;
+  if (FMap.multi.size && FMap.multi.has(mapKey(d))) {
+    const menu = clear(document.getElementById("mapMenu"));
+    menu.appendChild(h("div", { class: "head" }, t("map.group.title", { n: FMap.multi.size })));
+    menu.appendChild(h("div", { onclick: ev => { ev.stopPropagation(); menu.hidden = true; window.runtime.ClipboardSetText(mapMultiNodes().map(mapPath).join("\n")); setStatus(t("map.copied")); } }, t("map.group.copy")));
+    menu.appendChild(h("div", { onclick: ev => { ev.stopPropagation(); menu.hidden = true; mapMultiClear(); } }, t("map.group.clear"), h("small", {}, "Esc")));
+    menu.appendChild(h("hr"));
+    menu.appendChild(h("div", { class: "danger", onclick: ev => { ev.stopPropagation(); menu.hidden = true; FMap.confirming = true; mapDrawCard(); } }, "◉ " + t("map.group.trash", { n: FMap.multi.size }), h("small", {}, "Del")));
+    mapPlaceMenu(e, menu);
+    return;
+  }
   mapSelect(d);
   const menu = clear(document.getElementById("mapMenu")), n = d.data;
   const item = (key, label, cls, keyHint) => h("div", { class: cls || "", onclick: ev => { ev.stopPropagation(); mapAct(key, d); } }, label, keyHint ? h("small", {}, keyHint) : null);
@@ -370,6 +461,10 @@ function mapMenu(e, d) {
   menu.appendChild(item("reveal", t("map.act.reveal")));
   menu.appendChild(item("copy", t("map.act.copy")));
   if (d.depth) { menu.appendChild(item("rename", t("map.act.rename"), "", "F2")); menu.appendChild(h("hr")); menu.appendChild(item("trash", "◉ " + t("map.act.trash"), "danger", "Del")); }
+  mapPlaceMenu(e, menu);
+}
+
+function mapPlaceMenu(e, menu) {
   menu.hidden = false;
   const r = document.getElementById("mapPane").getBoundingClientRect();
   let x = e.clientX - r.left, y = e.clientY - r.top;
@@ -400,7 +495,7 @@ function mapDraw(fresh) {
 // to the deepest layer on the right). Switching morphs one into the other.
 const Galaxy = (() => {
   let svg, el, W = 600, H = 400, bg, world, spin, neb, fx, hole, linkSel, haloSel, starSel, labelSel, nodes = [], links = [], delaunay = null, fit = 1, home, zoom;
-  let hoverNode = null, drag = null, held = null, morphing = false, heavy = false, shown = null;
+  let hoverNode = null, drag = null, held = null, morphing = false, heavy = false, shown = null, lasso = null;
   const COL = 210, ROW = 20; // branches: a column per layer, a row per star
   const ring = d => [0, 150, 240, 315][d.depth] || 330;
   const rad = d => d.depth === 0 ? 18 : d.data.dir ? 4.5 + Math.min(10, Math.sqrt((d.data.files || 0) + (d.data.dirs || 0) * 3)) : d.data.more ? 3 : 1.8 + Math.min(6, Math.log10(1 + d.data.size) * 0.9);
@@ -420,7 +515,7 @@ const Galaxy = (() => {
     hole = svg.append("g").attr("class", "map-hole");
     fx = svg.append("g").style("pointer-events", "none");
     zoom = d3.zoom().scaleExtent([.25, 10])
-      .filter(e => !e.button && !(e.type === "mousedown" && pick(e)) && e.type !== "dblclick")
+      .filter(e => !e.button && !(e.type === "mousedown" && (pick(e) || e.shiftKey)) && e.type !== "dblclick")
       .on("zoom", e => { world.attr("transform", e.transform); labels(); });
     svg.call(zoom);
     svg.on("mousemove", onMove).on("mouseleave", () => { setHover(null); mapTip(null); })
@@ -624,8 +719,10 @@ const Galaxy = (() => {
     const d = hoverNode || FMap.trace, on = new Set(d ? d.ancestors() : []);
     linkSel.classed("trace", l => on.has(l.target)).attr("opacity", l => !d || on.has(l.target) ? 1 : .3);
     labelSel.classed("on", x => on.has(x));
-    starSel.attr("stroke", x => x === FMap.sel ? "#ffe08a" : x.data.dir && !x.data.read && x.depth ? "rgba(255,255,255,.6)" : null)
-      .attr("stroke-width", x => x === FMap.sel ? 2 : 1);
+    const many = FMap.multi;
+    starSel.attr("stroke", x => many.has(mapKey(x)) ? "#7fe0ff" : x === FMap.sel ? "#ffe08a" : x.data.dir && !x.data.read && x.depth ? "rgba(255,255,255,.6)" : null)
+      .attr("stroke-width", x => many.has(mapKey(x)) ? 3 : x === FMap.sel ? 2 : 1)
+      .attr("stroke-dasharray", x => many.has(mapKey(x)) ? null : x.data.dir && !x.data.read && x.depth ? "2 2" : null);
     labels();
   }
 
@@ -658,7 +755,10 @@ const Galaxy = (() => {
 
   function onClick(e) {
     if (drag && drag.moved) return;
+    if (lasso && lasso.done) { lasso = null; return; }
     const d = pick(e);
+    if (d && (e.ctrlKey || e.metaKey)) { e.stopPropagation(); mapToggle(d); return; }
+    if (!d && FMap.multi.size) { mapMultiClear(); return; }
     if (!d) { mapSelect(null); FMap.auto = true; svg.transition().duration(800).call(zoom.transform, home); return; }
     e.stopPropagation();
     if (d.data.dir && d.depth && FMap.sel === d) { fly(d, true); return; } // a second click goes in
@@ -670,10 +770,39 @@ const Galaxy = (() => {
   function onDown(e) {
     if (e.button) return;
     const d = pick(e);
+    if (e.shiftKey) { // Shift+drag: choose every star in a box (Shift+click: one star)
+      const [x, y] = d3.pointer(e, el);
+      lasso = { x0: x, y0: y, x1: x, y1: y, at: d, box: fx.append("rect").attr("class", "map-lasso").attr("x", x).attr("y", y) };
+      e.preventDefault();
+      return;
+    }
     if (!d || !d.depth || d.data.more) return;
     drag = { d, x0: e.clientX, y0: e.clientY, on: false, moved: false };
   }
+  function lassoMove(e) {
+    if (!lasso || lasso.done) return false;
+    const [x, y] = d3.pointer(e, el);
+    lasso.x1 = x; lasso.y1 = y;
+    lasso.box.attr("x", Math.min(lasso.x0, x)).attr("y", Math.min(lasso.y0, y)).attr("width", Math.abs(x - lasso.x0)).attr("height", Math.abs(y - lasso.y0));
+    return true;
+  }
+  function lassoEnd() {
+    if (!lasso || lasso.done) return false;
+    const [xa, xb] = [Math.min(lasso.x0, lasso.x1), Math.max(lasso.x0, lasso.x1)], [ya, yb] = [Math.min(lasso.y0, lasso.y1), Math.max(lasso.y0, lasso.y1)];
+    lasso.box.remove();
+    lasso.done = true;
+    if (xb - xa < 4 && yb - ya < 4) { // a click, not a box
+      const at = lasso.at;
+      setTimeout(() => { lasso = null; }, 0);
+      if (at) mapToggle(at);
+      return true;
+    }
+    mapMultiAdd(nodes.filter(d => { const [x, y] = screenOf(d); return x >= xa && x <= xb && y >= ya && y <= yb; }));
+    setTimeout(() => { lasso = null; }, 0);
+    return true;
+  }
   function onDrag(e) {
+    if (lassoMove(e)) return;
     if (!drag) return;
     if (!drag.on && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) > 6) {
       drag.on = drag.moved = true;
@@ -688,12 +817,20 @@ const Galaxy = (() => {
     hole.classed("hungry", holeNear(px, py));
   }
   function onUp() {
+    if (lassoEnd()) return;
     if (!drag) return;
     const dr = drag;
     setTimeout(() => { if (drag === dr) drag = null; }, 0);
     if (!dr.on) return;
     hole.classed("hungry", false);
     if (holeNear(dr.px, dr.py)) {
+      if (FMap.multi.size && FMap.multi.has(mapKey(dr.d))) { // the dragged star brings its group
+        held = dr;
+        FMap.confirming = true;
+        mapDrawCard();
+        return;
+      }
+      FMap.multi.clear();
       mapSelect(dr.d);
       held = dr;
       FMap.confirming = true;
@@ -767,5 +904,13 @@ const Galaxy = (() => {
     if (enter) tr.on("end", () => mapLoad(mapPath(d)));
   }
 
-  return { init, resize, draw, paint, fly, devour, unhold, morph, relabel: drawHole };
+  // devourMany feeds a group to the black hole, one star after another; a
+  // large group shows the first stars only, the others simply go out.
+  function devourMany(list) {
+    const shownList = list.slice(0, 14), rest = list.slice(14);
+    if (rest.length && starSel) starSel.filter(x => rest.includes(x)).transition().duration(600).attr("opacity", 0);
+    return Promise.all(shownList.map((d, i) => new Promise(r => setTimeout(r, i * 110)).then(() => devour(d))));
+  }
+
+  return { init, resize, draw, paint, fly, devour, devourMany, unhold, morph, relabel: drawHole };
 })();
