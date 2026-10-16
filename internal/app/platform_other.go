@@ -3,10 +3,13 @@
 package app
 
 import (
+	"errors"
 	"io"
 	"os"
 	"strings"
 	"syscall"
+
+	"golang.org/x/term"
 
 	"github.com/thangkes/cmdex/internal/update"
 )
@@ -29,6 +32,15 @@ func (a *App) restart() {
 }
 
 func consoleOut() io.Writer { return os.Stdout }
+
+// consoleIn is the terminal's keyboard, when stdin is a terminal.
+func consoleIn() (int, func(), error) {
+	fd := int(os.Stdin.Fd())
+	if !term.IsTerminal(fd) {
+		return 0, nil, errors.New("not a terminal")
+	}
+	return fd, func() {}, nil
+}
 
 // systemLang is "vi" when the locale is Vietnamese.
 func systemLang() string {

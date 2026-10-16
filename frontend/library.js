@@ -176,13 +176,21 @@ async function importAny() {
   let pv;
   try { pv = await api.PickImport(); } catch (e) { setStatus(errText(e), true); return; }
   if (!pv || !pv.path) return;
+  // a backup sealed with a password: ask it (again, until it opens or the user gives up)
+  let password = "";
+  while (pv.locked) {
+    const pw = await secureInput(t("io.sealedTitle"), password ? t("io.sealedWrong") : t("io.sealedAsk"));
+    if (pw === null) return;
+    try { pv = await api.InspectImport(pv.path, pw); password = pw; }
+    catch (e) { password = "x"; if (!/wrong password/i.test(errText(e))) { setStatus(errText(e), true); return; } }
+  }
   const body = [
-    h("p", { class: "soft" }, t("io.kind." + pv.kind)),
+    h("p", { class: "soft" }, t("io.kind." + pv.kind), pv.sealed ? " " + t("io.sealedOpened") : ""),
     h("p", { class: "mono", style: { wordBreak: "break-all", fontSize: "12px", margin: 0 } }, pv.path),
     h("ul", { class: "soft", style: { margin: 0, paddingLeft: "18px", lineHeight: 1.7 } },
       h("li", {}, t("io.count.commands", { n: pv.commands })),
       h("li", {}, t("io.count.explains", { n: pv.explains })),
-      pv.kind !== "pack" ? [h("li", {}, t("io.count.connections", { n: pv.connections })), h("li", {}, t("io.count.collected", { n: pv.collected }))] : null),
+      pv.kind !== "pack" ? [h("li", {}, t("io.count.connections", { n: pv.connections })), h("li", {}, t("io.count.collected", { n: pv.collected })), h("li", {}, t("io.count.notes", { n: pv.notes || 0 }))] : null),
     pv.exported ? h("p", { class: "note" }, t("io.exported", { when: new Date(pv.exported).toLocaleString(), app: pv.app || "?" })) : null,
     pv.kind !== "pack" ? h("p", { class: "note" }, t("io.modes")) : null,
   ];
@@ -193,7 +201,7 @@ async function importAny() {
   if (!mode) return;
   if (mode === "replace" && !await confirmDialog(t("io.replace"), t("io.replaceQ"), t("io.replace"), true)) return;
   try {
-    const r = await api.ImportFrom(pv.path, mode === "replace");
+    const r = await api.ImportFrom(pv.path, mode === "replace", pv.sealed ? password : "");
     await dialog(t("io.doneTitle"), h("p", { class: "soft" }, t("io.done", r)), [{ label: t("common.ok"), pri: true, value: true }]);
     if (pv.kind !== "pack") location.reload(); // language, theme and every list may have changed
     else renderLibrary();
@@ -214,10 +222,38 @@ async function exportMenu() {
   ]);
   if (!kind) return;
   try {
-    const fn = { backup: api.ExportBackupFile, db: api.ExportDatabaseFile, pack: api.ExportPackFile }[kind];
-    const path = await fn();
+    let path;
+    if (kind === "backup") {
+      const pw = await backupPassword();
+      if (pw === null) return;
+      path = await api.ExportBackupFile(pw);
+    } else path = await { db: api.ExportDatabaseFile, pack: api.ExportPackFile }[kind]();
     if (path) setStatus(t("lib.exported", { p: path }));
   } catch (e) { setStatus(errText(e), true); }
+}
+
+// backupPassword lets the user choose how safe a full backup is: plain JSON,
+// or sealed with a password ("" plain, null cancelled).
+async function backupPassword() {
+  const how = await dialog(t("io.protectTitle"), [
+    h("p", { class: "soft" }, h("b", {}, t("io.protect.with")), " — ", t("io.protect.withD")),
+    h("p", { class: "soft" }, h("b", {}, t("io.protect.without")), " — ", t("io.protect.withoutD")),
+  ], [
+    { label: t("common.cancel"), value: null },
+    { label: t("io.protect.without"), value: "plain" },
+    { label: t("io.protect.with"), pri: true, value: "sealed" },
+  ]);
+  if (!how) return null;
+  if (how === "plain") return "";
+  for (;;) {
+    const a = await secureInput(t("io.protectTitle"), t("io.protect.new"));
+    if (a === null) return null;
+    if ([...a].length < 8) { await dialog(t("io.protectTitle"), h("p", { class: "soft" }, t("io.protect.short")), [{ label: t("common.ok"), pri: true, value: true }]); continue; }
+    const b = await secureInput(t("io.protectTitle"), t("io.protect.again"));
+    if (b === null) return null;
+    if (a !== b) { await dialog(t("io.protectTitle"), h("p", { class: "soft" }, t("io.protect.differ")), [{ label: t("common.ok"), pri: true, value: true }]); continue; }
+    return a;
+  }
 }
 
 async function reimport() {

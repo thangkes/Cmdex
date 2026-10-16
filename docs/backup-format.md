@@ -12,7 +12,19 @@ Not in a backup, on purpose:
 
 Collected command lines are stored with secrets already masked (`••••••`).
 
-**Not encrypted.** The database is encrypted (since 0.1.6), but a JSON backup holds the library in clear, so that it can be read on another computer: keep it as safe as the library itself. A database copy (`.db`) stays encrypted and imports only on the computer that made it.
+**With or without a password: you choose** (since 0.2.1). Without one, a JSON backup holds the library in clear, as below, so that it can be read anywhere: keep it as safe as the library itself. With one, the same JSON is sealed:
+
+```jsonc
+{
+  "format": "cmdex-backup-sealed", "version": 1,
+  "kdf": {"name": "argon2id", "salt": "<base64, 16 bytes>", "time": 3, "memory": 65536, "threads": 4},
+  "cipher": "aes-256-gcm",
+  "nonce": "<base64, 12 bytes>",
+  "data": "<base64: the JSON backup below, encrypted; the header above is authenticated with it>"
+}
+```
+
+It opens in Cmdex on any computer, Windows or Linux, with its password (Library ▸ Import…, or `cmdex --import FILE`, which asks for it). A database copy (`.db`) stays encrypted with this computer's key and imports only on the computer that made it.
 
 **Encoding.** Files Cmdex writes (backups and packs) are UTF-8 **with a BOM**, so Windows tools that guess the encoding (old Notepad, Excel, PowerShell 5's `Get-Content`) show Vietnamese correctly. Cmdex reads UTF-8 with or without a BOM, and UTF-16 with a BOM (Notepad's "Unicode", PowerShell 5's `>`); a file in a legacy encoding (Windows-1258…) is refused rather than read as broken letters. Some JSON tools reject a BOM: in Python use `open(path, encoding="utf-8-sig")`.
 
@@ -126,7 +138,7 @@ Cố ý **không** có trong file sao lưu:
 
 Lệnh thu thập được lưu ở dạng đã che bí mật (`••••••`).
 
-**Không mã hóa.** Database được mã hóa (từ 0.1.6), nhưng file sao lưu JSON chứa thư viện ở dạng rõ để mở được trên máy khác: hãy cất giữ cẩn thận như chính thư viện. Bản chép database (`.db`) vẫn được mã hóa và chỉ nạp được trên đúng máy đã tạo ra nó.
+**Có hoặc không mật khẩu, do bạn chọn** (từ 0.2.1). Không mật khẩu: file JSON chứa thư viện ở dạng rõ để mở được ở bất kỳ đâu, hãy cất giữ cẩn thận như chính thư viện. Có mật khẩu: file được mã hoá (AES-256-GCM, khoá suy ra từ mật khẩu bằng Argon2id, cấu trúc như phần tiếng Anh) và mở được trên mọi máy Windows hay Linux khi có mật khẩu (Thư viện ▸ Nhập…, hoặc `cmdex --import FILE` sẽ hỏi mật khẩu). Quên mật khẩu thì không khôi phục được. Bản chép database (`.db`) vẫn được mã hóa bằng khoá của máy này và chỉ nạp được trên đúng máy đã tạo ra nó.
 
 **Bảng mã.** File Cmdex ghi ra (sao lưu, gói lệnh) là UTF-8 **có BOM**, để Notepad bản cũ, Excel hay `Get-Content` của PowerShell 5 hiển thị đúng tiếng Việt. Cmdex đọc được UTF-8 có hoặc không BOM, và UTF-16 có BOM (Notepad lưu "Unicode", lệnh `>` của PowerShell 5). File bảng mã cũ (Windows-1258…) bị từ chối thay vì nạp chữ vỡ. Một số công cụ JSON không nhận BOM: với Python dùng `open(path, encoding="utf-8-sig")`.
 

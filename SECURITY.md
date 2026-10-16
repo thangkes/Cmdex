@@ -33,9 +33,9 @@ Please report vulnerabilities privately through GitHub: **Security ▸ Report a 
 - Telnet is unencrypted by design; use it only on trusted networks.
 - Release files are not code-signed yet, so their integrity rests on this GitHub repository (and Windows SmartScreen may warn on first install).
 - Encryption protects the database file (a lost disk, a copied file, a leaked backup of the folder), not against a program running as you, which can ask the keychain as Cmdex does.
-- **JSON backups are not encrypted**: they hold your library in clear (readable by your account only). Keep them as safe as the library itself.
+- **You choose how a JSON backup is kept** (since 0.2.1). With a password it is encrypted (AES-256-GCM, key from the password with Argon2id) and opens on any computer only with that password; a forgotten password cannot be recovered. Without one it holds your library in clear (readable by your account only): keep it as safe as the library itself. Passwords are typed on the secure keypad, or in the terminal for `cmdex --export … --password`, never on the command line.
 - Interface settings (language, theme, filters) and the names of programs you asked about are not encrypted.
-- JSON backups include your notes and their images in clear, like the rest of the library.
+- JSON backups without a password include your notes and their images in clear, like the rest of the library.
 - Going back to 0.1.5 or older after 0.1.6 is not supported: those versions cannot read the encrypted values.
 - **Correction (2026-10-14):** in 0.1.5 and earlier, ▶ Run pastes a command and presses Enter at once, whatever its safety level: "ask before running" and "copy only" are stored but **not enforced** (earlier versions of this file and of the 0.1.4/0.1.5 release notes said otherwise). Update to 0.1.6 or later, where ▶ only pastes.
 - The folder map's file actions act at once after you choose them (rename, new folder) or after one confirmation (the black hole). Restore a deleted file from the system trash.

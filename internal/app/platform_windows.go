@@ -45,6 +45,16 @@ func consoleOut() io.Writer {
 	return f
 }
 
+// consoleIn is the console's keyboard (a GUI program has no usable stdin):
+// the console attached by consoleOut.
+func consoleIn() (int, func(), error) {
+	f, err := os.OpenFile("CONIN$", os.O_RDWR, 0)
+	if err != nil {
+		return 0, nil, err
+	}
+	return int(f.Fd()), func() { f.Close() }, nil
+}
+
 // systemLang is "vi" when Windows' display language is Vietnamese.
 func systemLang() string {
 	langs, err := windows.GetUserPreferredUILanguages(windows.MUI_LANGUAGE_NAME)

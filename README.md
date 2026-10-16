@@ -179,6 +179,8 @@ For interface work without the desktop shell: `CMDEX_DB=./tmp/cmdex.db go run ./
 
 The chat bubble in the corner (Ctrl+Shift+N) keeps notes like messages: text in any language with **bold**, *italic*, __underline__, ~~strike~~, ==highlight==, colours, headings, lists, tasks you can tick, quotes and code blocks, plus images you paste or drop. Commands and scripts in a note are coloured (PowerShell, bash, cmd, Python, JavaScript, Go, SQL, JSON, YAML…) and can only be copied, never run from there. **Find** marks every match, shows how many there are and steps through them with the arrows (accents and case ignored). A note can be pinned to the file or folder chosen on the map. Notes and their images are encrypted in your database and travel in backups.
 
+**Moving to another computer, safely**: Library ▸ Export ▸ Full backup asks whether to protect it with a password. With one, the backup is encrypted and opens on any Windows or Linux computer only with that password; without one it is plain JSON. On the command line: `cmdex --export backup.json --password` (the password is asked, never given on the command line) and `cmdex --import backup.json`.
+
 **Terminal copy and paste**: right-click in a terminal to copy the selection or everything it holds, paste, select all or clear the screen. Ctrl+C copies when text is selected and interrupts otherwise; pasting several lines asks first.
 
 ### Packs
@@ -350,6 +352,8 @@ sh dist/install.sh
 ### Ghi chú
 
 Bong bóng chat ở góc (Ctrl+Shift+N) lưu ghi chú như tin nhắn: chữ ngôn ngữ nào cũng được, có **đậm**, *nghiêng*, __gạch chân__, ~~gạch ngang~~, ==tô sáng==, chữ màu, tiêu đề, danh sách, việc cần làm tick được, trích dẫn và khối code, cùng ảnh dán hoặc kéo thả vào. Lệnh và script trong ghi chú được tô màu (PowerShell, bash, cmd, Python, JavaScript, Go, SQL, JSON, YAML…) và chỉ sao chép được, không bao giờ chạy từ đó. Ô **Tìm** tô sáng mọi chỗ khớp, hiện số kết quả và dùng mũi tên để rà lần lượt (không phân biệt dấu và hoa thường). Ghi chú có thể gắn với file hay thư mục đang chọn trên bản đồ. Ghi chú và ảnh được mã hoá trong database của bạn và có trong bản sao lưu.
+
+**Chuyển máy an toàn**: Thư viện ▸ Xuất ▸ Sao lưu đầy đủ sẽ hỏi có đặt mật khẩu không. Có mật khẩu thì bản sao lưu được mã hoá và chỉ mở được (trên mọi máy Windows hay Linux) khi có mật khẩu; không mật khẩu thì là file JSON thường. Dòng lệnh: `cmdex --export backup.json --password` (mật khẩu được hỏi, không bao giờ ghi trên dòng lệnh) và `cmdex --import backup.json`.
 
 **Sao chép và dán trong terminal**: chuột phải trong terminal để sao chép đoạn đang chọn hoặc toàn bộ nội dung, dán, chọn tất cả hoặc xoá màn hình. Ctrl+C sao chép khi đang bôi đen và ngắt lệnh khi không; dán nhiều dòng sẽ được hỏi lại trước.
 

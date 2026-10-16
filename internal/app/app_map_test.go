@@ -121,3 +121,66 @@ func TestMapLastFolderAndTrashMany(t *testing.T) {
 		t.Error("b.txt was not chosen but is gone")
 	}
 }
+
+// A backup sealed with a password: unreadable without it, described and
+// imported with it, refused with a wrong one; a plain one still works.
+func TestSealedBackupRoundTrip(t *testing.T) {
+	open := func() *App {
+		s, err := store.Open(filepath.Join(t.TempDir(), "c.db"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { s.Close() })
+		if err := s.SetUpKey(store.KeyKeychain, "test", nil, store.NewDatabaseKey()); err != nil {
+			t.Fatal(err)
+		}
+		return &App{store: s}
+	}
+	a := open()
+	if _, err := a.store.AddNote("witness-note ghi chú bí mật", ""); err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	sealed, plain := filepath.Join(dir, "sealed.json"), filepath.Join(dir, "plain.json")
+	if err := a.writeBackup(sealed, "mật khẩu đủ dài"); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.writeBackup(plain, ""); err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := os.ReadFile(sealed)
+	if strings.Contains(string(raw), "witness-note") {
+		t.Fatal("the sealed backup shows a note")
+	}
+	if raw, _ := os.ReadFile(plain); !strings.Contains(string(raw), "witness-note") {
+		t.Fatal("the plain backup should hold the note in clear")
+	}
+	if err := a.writeBackup(filepath.Join(dir, "x.json"), "short"); err == nil {
+		t.Error("a short password was accepted")
+	}
+
+	b := open()
+	pv, err := b.InspectImport(sealed, "")
+	if err != nil || !pv.Locked || !pv.Sealed || pv.Kind != "backup" {
+		t.Fatalf("locked preview: %v %+v", err, pv)
+	}
+	if _, err := b.ImportFrom(sealed, false, ""); err == nil {
+		t.Error("imported a sealed backup without its password")
+	}
+	if _, err := b.ImportFrom(sealed, false, "wrong password!"); err == nil {
+		t.Error("imported with a wrong password")
+	}
+	if pv, err = b.InspectImport(sealed, "mật khẩu đủ dài"); err != nil || pv.Locked || pv.Notes != 1 {
+		t.Fatalf("opened preview: %v %+v", err, pv)
+	}
+	r, err := b.ImportFrom(sealed, false, "mật khẩu đủ dài")
+	if err != nil || r.Notes != 1 {
+		t.Fatalf("import: %v %+v", err, r)
+	}
+	if ns, _ := b.store.Notes("witness-note"); len(ns) != 1 {
+		t.Error("the note did not arrive")
+	}
+	if pv, err := b.InspectImport(plain, ""); err != nil || pv.Locked || pv.Sealed {
+		t.Errorf("plain preview: %v %+v", err, pv)
+	}
+}

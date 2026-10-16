@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -9,6 +10,9 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode/utf8"
+
+	"golang.org/x/term"
 
 	"github.com/thangkes/cmdex/internal/collect"
 	"github.com/thangkes/cmdex/internal/store"
@@ -20,8 +24,10 @@ import (
 //
 //	cmdex --version                 print the version
 //	cmdex --update                  install a newer release, if there is one
-//	cmdex --export FILE.json|.db    save a full backup / a copy of the database
-//	cmdex --import FILE [--replace] load a backup, pack or database
+//	cmdex --export FILE.json|.db [--password]  save a full backup (sealed with a
+//	                                           password typed in the terminal) / a copy of the database
+//	cmdex --import FILE [--replace]            load a backup, pack or database (asks the
+//	                                           password of a sealed backup)
 func CLI(args []string) (handled bool, code int) {
 	if len(args) == 0 {
 		return false, 0
@@ -37,20 +43,32 @@ func CLI(args []string) (handled bool, code int) {
 	case "--export", "--import":
 		out := consoleOut()
 		if len(args) < 2 {
-			fmt.Fprintln(out, "usage: cmdex --export FILE.json|FILE.db   or   cmdex --import FILE [--replace]")
+			fmt.Fprintln(out, "usage: cmdex --export FILE.json|FILE.db [--password]   or   cmdex --import FILE [--replace]")
 			return true, 2
 		}
-		return true, transferCLI(out, args[0], args[1], len(args) > 2 && args[2] == "--replace")
+		replace, sealed := false, false
+		for _, f := range args[2:] {
+			switch f {
+			case "--replace":
+				replace = true
+			case "--password":
+				sealed = true
+			default:
+				fmt.Fprintln(out, "unknown option:", f, "(passwords are asked, never given on the command line)")
+				return true, 2
+			}
+		}
+		return true, transferCLI(out, args[0], args[1], replace, sealed)
 	}
 	return false, 0
 }
 
 // transferCLI exports or imports the library without the window:
 //
-//	cmdex --export backup.json      full JSON backup
-//	cmdex --export copy.db          copy of the database file
-//	cmdex --import FILE [--replace] backup, pack or database; merged unless --replace
-func transferCLI(out io.Writer, op, file string, replace bool) int {
+//	cmdex --export backup.json [--password]  full JSON backup, sealed with a password if asked
+//	cmdex --export copy.db                   copy of the database file
+//	cmdex --import FILE [--replace]          backup, pack or database; merged unless --replace
+func transferCLI(out io.Writer, op, file string, replace, sealed bool) int {
 	path, err := store.DefaultPath()
 	if err == nil {
 		var s *store.Store
@@ -70,18 +88,34 @@ func transferCLI(out io.Writer, op, file string, replace bool) int {
 			switch op {
 			case "--export":
 				if strings.EqualFold(filepath.Ext(file), ".db") {
+					if sealed {
+						err = fmt.Errorf("a database copy is already encrypted (with this computer's key): --password is for .json backups")
+						break
+					}
 					err = a.writeDatabase(file)
 				} else {
-					err = a.writeBackup(file)
+					pw := ""
+					if sealed {
+						if pw, err = cliNewPassword(out); err != nil {
+							break
+						}
+					}
+					err = a.writeBackup(file, pw)
 				}
 				if err == nil {
 					fmt.Fprintln(out, "exported to", file)
 				}
 			case "--import":
 				var r store.BackupResult
-				if r, err = a.ImportFrom(file, replace); err == nil {
-					fmt.Fprintf(out, "imported: %d commands added, %d updated, %d kept; %d explanations, %d rules, %d connections, %d collected groups, %d settings\n",
-						r.Added, r.Updated, r.Kept, r.Explains, r.Rules, r.Connections, r.Collected, r.Settings)
+				pw := ""
+				if pv, e := a.InspectImport(file, ""); e == nil && pv.Locked {
+					if pw, err = cliPassword(out, "Backup password: "); err != nil {
+						break
+					}
+				}
+				if r, err = a.ImportFrom(file, replace, pw); err == nil {
+					fmt.Fprintf(out, "imported: %d commands added, %d updated, %d kept; %d explanations, %d rules, %d connections, %d collected groups, %d notes, %d settings\n",
+						r.Added, r.Updated, r.Kept, r.Explains, r.Rules, r.Connections, r.Collected, r.Notes, r.Settings)
 				}
 			}
 		}
@@ -91,6 +125,38 @@ func transferCLI(out io.Writer, op, file string, replace bool) int {
 		return 1
 	}
 	return 0
+}
+
+// cliPassword reads a password typed in the terminal, without echo.
+func cliPassword(out io.Writer, prompt string) (string, error) {
+	in, closeIn, err := consoleIn()
+	if err != nil {
+		return "", errors.New("a password is needed: run this in a terminal")
+	}
+	defer closeIn()
+	fmt.Fprint(out, prompt)
+	pw, err := term.ReadPassword(in)
+	fmt.Fprintln(out)
+	return string(pw), err
+}
+
+// cliNewPassword asks a new backup password twice.
+func cliNewPassword(out io.Writer) (string, error) {
+	pw, err := cliPassword(out, fmt.Sprintf("New backup password (at least %d characters): ", store.MinBackupPassword))
+	if err != nil {
+		return "", err
+	}
+	if utf8.RuneCountInString(pw) < store.MinBackupPassword {
+		return "", store.ErrShortBackupPassword
+	}
+	again, err := cliPassword(out, "Again: ")
+	if err != nil {
+		return "", err
+	}
+	if again != pw {
+		return "", errors.New("the passwords differ")
+	}
+	return pw, nil
 }
 
 func updateCLI(out io.Writer) int {
