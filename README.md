@@ -204,7 +204,7 @@ The chat bubble in the corner (Ctrl+Shift+N) keeps notes like messages: text in 
 
 A pack is a JSON file of commands, explanations, synonyms and rules; texts may be plain strings or `{"en": "…", "vi": "…"}`. See [`packs/`](packs) for the starter packs. Library ▸ Import / Export moves your library between computers.
 
-**Tool packs** (Library ▸ Tool packs) hold commands for programs such as nmap or python. They are built into Cmdex, so nothing is downloaded. Cmdex offers one when it finds its program on `PATH`; it only looks at file names and never runs the program. Turning a pack off removes its commands, but the ones you edited stay. See [`packs/tools/`](packs/tools) for the format and the tldr-pages converter. The Python, Java, Maven and Gradle packs are adapted from [tldr-pages](https://github.com/tldr-pages/tldr) ([CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)), with a Vietnamese translation added.
+**Tool packs** (Library ▸ Tool packs) hold commands for programs such as nmap or python. They are built into Cmdex, so nothing is downloaded. Cmdex offers one when it finds its program on `PATH`; it only looks at file names and never runs the program. Turning a pack off removes its commands, but the ones you edited stay. See [`packs/tools/`](packs/tools) for the format and the tldr-pages converter. The Python, Java, Maven and Gradle packs are adapted from [tldr-pages](https://github.com/tldr-pages/tldr) ([CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)), with a Vietnamese translation added. The Nmap pack is written from Nmap's own help: common scans with every option explained; loud, intrusive or spoofing scans carry a **Warning** label (dos scripts **Critical**), and nothing is blocked.
 
 License: [MIT](LICENSE).
 
@@ -393,6 +393,6 @@ Bong bóng chat ở góc (Ctrl+Shift+N) lưu ghi chú như tin nhắn: chữ ng�
 
 ### Gói công cụ
 
-**Thư viện lệnh ▸ Gói công cụ** chứa lệnh cho các chương trình như nmap, python. Các gói có sẵn trong Cmdex nên không tải gì về. Cmdex gợi ý một gói khi thấy chương trình đó trong `PATH`. Nó chỉ xem tên file, không chạy chương trình. Tắt gói sẽ bỏ các lệnh của gói, nhưng lệnh bạn đã sửa vẫn được giữ. Định dạng gói và công cụ chuyển từ tldr-pages xem ở [`packs/tools/`](packs/tools). Các gói Python, Java, Maven, Gradle được chuyển thể từ [tldr-pages](https://github.com/tldr-pages/tldr) ([CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)) và dịch thêm tiếng Việt.
+**Thư viện lệnh ▸ Gói công cụ** chứa lệnh cho các chương trình như nmap, python. Các gói có sẵn trong Cmdex nên không tải gì về. Cmdex gợi ý một gói khi thấy chương trình đó trong `PATH`. Nó chỉ xem tên file, không chạy chương trình. Tắt gói sẽ bỏ các lệnh của gói, nhưng lệnh bạn đã sửa vẫn được giữ. Định dạng gói và công cụ chuyển từ tldr-pages xem ở [`packs/tools/`](packs/tools). Các gói Python, Java, Maven, Gradle được chuyển thể từ [tldr-pages](https://github.com/tldr-pages/tldr) ([CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)) và dịch thêm tiếng Việt. Gói Nmap được viết dựa trên phần trợ giúp của chính Nmap: các kiểu quét hay dùng, giải nghĩa từng tuỳ chọn; kiểu quét ồn, có tính xâm nhập hoặc giả mạo được gắn nhãn **Warning** (script dos là **Critical**), không lệnh nào bị chặn.
 
 Giấy phép: [MIT](LICENSE).

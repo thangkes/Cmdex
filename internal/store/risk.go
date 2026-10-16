@@ -41,6 +41,8 @@ var (
 		`\bdrop\s+(?:database|table|schema)\b`, `\btruncate\s+table\b`, `\bdocker\s+(?:system|volume)\s+prune\b`,
 		// a Java debugger open to the whole network runs any code it is sent
 		`-(?:agentlib:jdwp|xrunjdwp:)\S*address=(?:\*|0\.0\.0\.0):`,
+		// nmap's dos scripts may crash the service they test
+		`\bnmap\b.*--script[=\s]+\S*\bdos\b`,
 	)
 	warningComputer = res(
 		`\brm\b`, `\b(?:del|erase|rmdir|rd)\s`, `\bremove-item\b`,
@@ -74,6 +76,12 @@ var (
 		`\bmvn\b.*\b(?:clean|install|deploy|release:\w+|dependency:(?:add|purge-local-repository)|archetype:generate|versions:set)\b`,
 		`\bgradle[w]?\b.*\b(?:clean|wrapper|init|publish\w*|uploadArchives)\b`,
 		`\bpip3?\s+(?:\S+\s+)*cache\s+(?:purge|remove)\b`,
+		// nmap: loud or intrusive scans, spoofing and firewall evasion, flooding, files written.
+		// Options are case-sensitive: -D decoys but -d debug, -f fragments but -F fast.
+		`\bnmap\b.*(?:\s-A\b|--script[=\s]+\S*\b(?:vuln|exploit|brute|intrusive|fuzzer|malware)\b|--script-updatedb\b)`,
+		`\bnmap\b.*(?-i:\s-(?:D|S|f|g|b|iR|sI|T5)\b)`,
+		`\bnmap\b.*--(?:mtu|spoof-mac|badsum|data|data-string|data-length|ip-options|source-port|proxies|min-rate)\b`,
+		`\bnmap\b.*(?-i:\s-o[NXSGA]\s)`,
 	)
 	// warningExempt: lines a warning pattern matches that only check something
 	warningExempt = res(`\bjarsigner\b.*\s-verify\b`)
