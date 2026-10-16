@@ -79,6 +79,7 @@ rm -rf ~/.config/cmdex   # your library and settings: only if you want them gone
 - Collected commands have secrets masked before they are stored; collecting can be turned off per source.
 - Help lookup never runs an unknown program: it reads `man` pages, PowerShell `Get-Help`, and `/?` only for Windows' own tools in System32.
 - Updates are downloaded from this repository's releases and installed only when their SHA-256 matches the published `SHA256SUMS.txt`.
+- JSON backups can be encrypted with a password of your choice, or kept plain; see [Moving to another computer](#moving-to-another-computer). Details in [SECURITY.md](SECURITY.md).
 
 ### Build from source
 
@@ -154,7 +155,24 @@ For interface work without the desktop shell: `CMDEX_DB=./tmp/cmdex.db go run ./
 
 ### Moving to another computer
 
-**Library ▸ Export…** saves a full backup (`.json`: commands, explanations, rules, synonyms, connections, collected lines, settings — never passwords) or a copy of the database file (`.db`). **Library ▸ Import…** loads either one, merging into your library or replacing it. From a terminal: `cmdex --export backup.json`, `cmdex --import backup.json [--replace]`. The file format is described in [docs/backup-format.md](docs/backup-format.md).
+**Library ▸ Export…** saves a full backup (`.json`: commands, explanations, rules, synonyms, connections, collected lines, notes and their images, settings — never passwords) or a copy of the database file (`.db`). **Library ▸ Import…** loads either one, merging into your library or replacing it.
+
+**With or without a password: you choose** (since 0.2.1). A full backup asks how to keep it:
+
+- **With a password** (at least 8 characters, typed twice on the secure keypad), the backup is encrypted (AES-256-GCM, key from the password with Argon2id). It opens on any Windows or Linux computer, but only with that password; a forgotten password cannot be recovered. Import asks for it and lets you try again.
+- **Without one**, it is plain JSON that anything can read (the file is readable by your account only): keep it as safe as the library itself.
+
+A `.db` copy stays encrypted with this computer's key, so it imports only on the computer that made it; use a JSON backup to move.
+
+From a terminal:
+
+```
+cmdex --export backup.json              # plain JSON
+cmdex --export backup.json --password   # encrypted: the password is asked twice
+cmdex --import backup.json [--replace]  # asks for the password if the file has one
+```
+
+Passwords are always asked, never given on the command line. The file format is described in [docs/backup-format.md](docs/backup-format.md).
 
 ### Folder map
 
@@ -178,8 +196,6 @@ For interface work without the desktop shell: `CMDEX_DB=./tmp/cmdex.db go run ./
 ### Notes
 
 The chat bubble in the corner (Ctrl+Shift+N) keeps notes like messages: text in any language with **bold**, *italic*, __underline__, ~~strike~~, ==highlight==, colours, headings, lists, tasks you can tick, quotes and code blocks, plus images you paste or drop. Commands and scripts in a note are coloured (PowerShell, bash, cmd, Python, JavaScript, Go, SQL, JSON, YAML…) and can only be copied, never run from there. **Find** marks every match, shows how many there are and steps through them with the arrows (accents and case ignored). A note can be pinned to the file or folder chosen on the map. Notes and their images are encrypted in your database and travel in backups.
-
-**Moving to another computer, safely**: Library ▸ Export ▸ Full backup asks whether to protect it with a password. With one, the backup is encrypted and opens on any Windows or Linux computer only with that password; without one it is plain JSON. On the command line: `cmdex --export backup.json --password` (the password is asked, never given on the command line) and `cmdex --import backup.json`.
 
 **Terminal copy and paste**: right-click in a terminal to copy the selection or everything it holds, paste, select all or clear the screen. Ctrl+C copies when text is selected and interrupts otherwise; pasting several lines asks first.
 
@@ -325,10 +341,28 @@ sh dist/install.sh
 - Lệnh thu thập được che bí mật trước khi lưu; tắt được từng nguồn thu thập.
 - Tra trợ giúp không bao giờ chạy chương trình lạ: chỉ đọc `man`, `Get-Help` của PowerShell, và `/?` với công cụ hệ thống của Windows trong System32.
 - Bản cập nhật tải từ Releases của repo này và chỉ được cài khi mã SHA-256 khớp với `SHA256SUMS.txt` đã công bố.
+- Bản sao lưu JSON có thể mã hoá bằng mật khẩu bạn đặt, hoặc để dạng thường; xem [Chuyển sang máy khác](#chuyển-sang-máy-khác). Chi tiết trong [SECURITY.md](SECURITY.md).
 
 ### Chuyển sang máy khác
 
-**Thư viện lệnh ▸ Xuất…** lưu bản sao lưu đầy đủ (`.json`: lệnh, giải nghĩa, quy tắc, từ đồng nghĩa, kết nối, lệnh thu thập, cài đặt — không bao giờ có mật khẩu) hoặc bản chép file database (`.db`). **Thư viện lệnh ▸ Nhập…** nạp lại một trong hai, chọn gộp hoặc thay thế toàn bộ. Dùng dòng lệnh: `cmdex --export backup.json`, `cmdex --import backup.json [--replace]`. Cấu trúc file mô tả trong [docs/backup-format.md](docs/backup-format.md).
+**Thư viện lệnh ▸ Xuất…** lưu bản sao lưu đầy đủ (`.json`: lệnh, giải nghĩa, quy tắc, từ đồng nghĩa, kết nối, lệnh thu thập, ghi chú kèm ảnh, cài đặt — không bao giờ có mật khẩu) hoặc bản chép file database (`.db`). **Thư viện lệnh ▸ Nhập…** nạp lại một trong hai, chọn gộp hoặc thay thế toàn bộ.
+
+**Có hay không mật khẩu: bạn chọn** (từ 0.2.1). Khi sao lưu đầy đủ, Cmdex hỏi bạn muốn giữ file thế nào:
+
+- **Có mật khẩu** (ít nhất 8 ký tự, gõ hai lần trên bàn phím bảo mật): bản sao lưu được mã hoá (AES-256-GCM, khoá sinh từ mật khẩu bằng Argon2id). Mở được trên mọi máy Windows hay Linux, nhưng chỉ khi có đúng mật khẩu; quên mật khẩu thì không khôi phục được. Lúc nhập, Cmdex hỏi mật khẩu và cho nhập lại nếu sai.
+- **Không mật khẩu**: file JSON thường, ai mở cũng đọc được (file chỉ tài khoản của bạn đọc được): hãy giữ nó cẩn thận như chính thư viện.
+
+Bản chép `.db` vẫn mã hoá bằng khoá của máy này nên chỉ nhập lại được trên chính máy đã tạo ra nó; muốn chuyển máy thì dùng bản sao lưu JSON.
+
+Dùng dòng lệnh:
+
+```
+cmdex --export backup.json              # JSON thường
+cmdex --export backup.json --password   # mã hoá: hỏi mật khẩu hai lần
+cmdex --import backup.json [--replace]  # tự hỏi mật khẩu nếu file có đặt
+```
+
+Mật khẩu luôn được hỏi, không bao giờ ghi trên dòng lệnh. Cấu trúc file mô tả trong [docs/backup-format.md](docs/backup-format.md).
 
 ### Bản đồ thư mục
 
@@ -352,8 +386,6 @@ sh dist/install.sh
 ### Ghi chú
 
 Bong bóng chat ở góc (Ctrl+Shift+N) lưu ghi chú như tin nhắn: chữ ngôn ngữ nào cũng được, có **đậm**, *nghiêng*, __gạch chân__, ~~gạch ngang~~, ==tô sáng==, chữ màu, tiêu đề, danh sách, việc cần làm tick được, trích dẫn và khối code, cùng ảnh dán hoặc kéo thả vào. Lệnh và script trong ghi chú được tô màu (PowerShell, bash, cmd, Python, JavaScript, Go, SQL, JSON, YAML…) và chỉ sao chép được, không bao giờ chạy từ đó. Ô **Tìm** tô sáng mọi chỗ khớp, hiện số kết quả và dùng mũi tên để rà lần lượt (không phân biệt dấu và hoa thường). Ghi chú có thể gắn với file hay thư mục đang chọn trên bản đồ. Ghi chú và ảnh được mã hoá trong database của bạn và có trong bản sao lưu.
-
-**Chuyển máy an toàn**: Thư viện ▸ Xuất ▸ Sao lưu đầy đủ sẽ hỏi có đặt mật khẩu không. Có mật khẩu thì bản sao lưu được mã hoá và chỉ mở được (trên mọi máy Windows hay Linux) khi có mật khẩu; không mật khẩu thì là file JSON thường. Dòng lệnh: `cmdex --export backup.json --password` (mật khẩu được hỏi, không bao giờ ghi trên dòng lệnh) và `cmdex --import backup.json`.
 
 **Sao chép và dán trong terminal**: chuột phải trong terminal để sao chép đoạn đang chọn hoặc toàn bộ nội dung, dán, chọn tất cả hoặc xoá màn hình. Ctrl+C sao chép khi đang bôi đen và ngắt lệnh khi không; dán nhiều dòng sẽ được hỏi lại trước.
 
