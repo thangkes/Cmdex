@@ -83,6 +83,7 @@ async function secureInput(title, label) {
 // ---- screen-capture protection switch in the top bar ----------------------
 
 async function refreshProtection() {
+  relabelSettings();
   const b = document.getElementById("protectBtn");
   let st;
   try { st = await api.Protection(); } catch (e) { return; }
@@ -95,7 +96,35 @@ async function refreshProtection() {
   b.setAttribute("aria-label", b.title);
 }
 
+// ---- settings ---------------------------------------------------------
+
+function relabelSettings() {
+  const b = document.getElementById("settingsBtn");
+  b.title = t("settings.title");
+  b.setAttribute("aria-label", b.title);
+}
+
+async function openSettings() {
+  const st = await api.Autostart().catch(() => null);
+  const os = App.info.os === "windows" ? "Windows" : "Linux";
+  const where = h("p", { class: "note" }, st && st.on ? t("settings.autostartOn", { p: st.path }) : t("settings.autostartOff"));
+  const body = [];
+  if (st && st.supported) {
+    body.push(sw(t("settings.autostart", { os }), t("settings.autostartHint"), st.on, async on => {
+      try {
+        const nst = await api.SetAutostart(on);
+        where.textContent = nst.on ? t("settings.autostartOn", { p: nst.path }) : t("settings.autostartOff");
+      } catch (e) { setStatus(errText(e), true); }
+    }), where);
+  } else {
+    body.push(h("p", { class: "soft" }, t("settings.autostartNo")));
+  }
+  await dialog(t("settings.title"), h("div", { class: "settings" }, body), [{ label: t("common.ok"), pri: true, value: true }]);
+}
+
 function initProtection() {
+  document.getElementById("settingsBtn").addEventListener("click", openSettings);
+  relabelSettings();
   const b = document.getElementById("protectBtn");
   b.addEventListener("click", async () => {
     const st = await api.Protection().catch(() => null);

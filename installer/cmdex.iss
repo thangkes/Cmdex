@@ -53,6 +53,10 @@ Source: "..\build\bin\Cmdex.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\LICENSE"; DestDir: "{app}"; DestName: "LICENSE.txt"; Flags: ignoreversion
 Source: "..\THIRD-PARTY-NOTICES.txt"; DestDir: "{app}"; Flags: ignoreversion
 
+[Registry]
+; "Open Cmdex when I sign in" (Settings) writes this value; uninstalling removes it.
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "Cmdex"; Flags: uninsdeletevalue dontcreatekey
+
 [Icons]
 Name: "{autoprograms}\Cmdex"; Filename: "{app}\Cmdex.exe"
 Name: "{autodesktop}\Cmdex"; Filename: "{app}\Cmdex.exe"; Tasks: desktopicon

@@ -25,7 +25,7 @@
   Edit a starter command and it becomes your own copy, which updates leave alone; delete one and it stays deleted (**Restore starter commands** brings it back). Import and export packs as JSON.
 - **See your folders as a galaxy.** Work ▸ Map draws the terminal's folder as stars you can hover, fly into and act on; the trash is a black hole. See [Folder map](#folder-map).
 - **Keep notes like chat messages.** The bubble in the corner (Ctrl+Shift+N) holds formatted text, tasks, code with colours and images, encrypted in your library; find with match count, pin a note to a file on the map. See [Notes](#notes).
-- **English and Vietnamese interface**, five color themes, self-update from GitHub releases (checksum-verified).
+- **English and Vietnamese interface**, five color themes, self-update from GitHub releases (checksum-verified). **Settings** (the gear) can open Cmdex when you sign in to Windows or Linux; it is off until you turn it on.
 
 ### Install
 
@@ -69,7 +69,7 @@ tar -xzf "Cmdex-Linux-amd64-$VER.tar.gz"
 **Uninstall**
 
 ```bash
-rm -f ~/.local/bin/cmdex ~/.local/share/applications/cmdex.desktop ~/.local/share/icons/hicolor/512x512/apps/cmdex.png
+rm -f ~/.local/bin/cmdex ~/.local/share/applications/cmdex.desktop ~/.config/autostart/cmdex.desktop ~/.local/share/icons/hicolor/512x512/apps/cmdex.png
 rm -rf ~/.config/cmdex   # your library and settings: only if you want them gone too
 ```
 
@@ -227,7 +227,7 @@ License: [MIT](LICENSE).
   Sửa một lệnh mẫu thì nó thành bản của riêng bạn, các bản cập nhật không đè lên; xoá thì nó không tự quay lại (nút **Khôi phục lệnh mẫu** đưa lại). Nhập/xuất gói lệnh dạng JSON.
 - **Thư mục thành thiên hà.** Làm việc ▸ Bản đồ vẽ thư mục của terminal thành các vì sao để rê chuột, bay vào và thao tác; thùng rác là một hố đen. Xem [Bản đồ thư mục](#bản-đồ-thư-mục).
 - **Ghi chú như nhắn tin.** Bong bóng chat ở góc (Ctrl+Shift+N) lưu chữ có định dạng, việc cần làm, code tô màu và ảnh, được mã hoá trong thư viện; tìm có đếm số kết quả, gắn ghi chú với file trên bản đồ. Xem [Ghi chú](#ghi-chú).
-- **Giao diện tiếng Việt và tiếng Anh**, 5 theme màu, tự cập nhật từ GitHub (có kiểm tra mã băm).
+- **Giao diện tiếng Việt và tiếng Anh**, 5 theme màu, tự cập nhật từ GitHub (có kiểm tra mã băm). **Cài đặt** (bánh răng) cho phép mở Cmdex khi đăng nhập Windows hoặc Linux; mặc định tắt cho đến khi bạn bật.
 
 ### Cài đặt
 
@@ -271,7 +271,7 @@ tar -xzf "Cmdex-Linux-amd64-$VER.tar.gz"
 **Gỡ cài đặt**
 
 ```bash
-rm -f ~/.local/bin/cmdex ~/.local/share/applications/cmdex.desktop ~/.local/share/icons/hicolor/512x512/apps/cmdex.png
+rm -f ~/.local/bin/cmdex ~/.local/share/applications/cmdex.desktop ~/.config/autostart/cmdex.desktop ~/.local/share/icons/hicolor/512x512/apps/cmdex.png
 rm -rf ~/.config/cmdex   # thư viện và cài đặt của bạn: chỉ xóa khi muốn bỏ luôn
 ```
 
