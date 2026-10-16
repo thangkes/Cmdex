@@ -41,6 +41,9 @@ try {
         -ldflags "-w -s -H windowsgui -X github.com/thangkes/cmdex/internal/app.Version=$Version" `
         -o build\bin\Cmdex.exe .
     if ($LASTEXITCODE) { throw "go build failed" }
+    # cmdex.com: the console launcher a terminal runs for `cmdex`
+    go build -trimpath -ldflags "-w -s" -o build\bin\cmdex.com ./launcher
+    if ($LASTEXITCODE) { throw "go build (launcher) failed" }
 
     if (-not $NoInstaller) {
         Write-Host "== Inno Setup ==" -ForegroundColor Cyan

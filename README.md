@@ -29,7 +29,7 @@
 
 ### Install
 
-- **Windows 10/11:** download `Cmdex-Windows-Setup-<version>.exe` from [Releases](https://github.com/thangkes/Cmdex/releases). It installs for your user only (no administrator rights).
+- **Windows 10/11:** download `Cmdex-Windows-Setup-<version>.exe` from [Releases](https://github.com/thangkes/Cmdex/releases). It installs for your user only (no administrator rights) and, unless you untick it, adds Cmdex to your PATH so `cmdex` works in any new terminal; uninstalling takes it out again.
 - **Linux (x86-64):** step by step below.
 
 #### Linux: install the released program
@@ -231,7 +231,7 @@ License: [MIT](LICENSE).
 
 ### Cài đặt
 
-- **Windows 10/11:** tải `Cmdex-Windows-Setup-<phiên bản>.exe` ở [Releases](https://github.com/thangkes/Cmdex/releases). Cài cho riêng tài khoản của bạn, không cần quyền Administrator.
+- **Windows 10/11:** tải `Cmdex-Windows-Setup-<phiên bản>.exe` ở [Releases](https://github.com/thangkes/Cmdex/releases). Cài cho riêng tài khoản của bạn, không cần quyền Administrator, và (nếu bạn không bỏ chọn) thêm Cmdex vào PATH để gõ `cmdex` trong mọi terminal mở sau đó; gỡ cài đặt sẽ bỏ ra.
 - **Linux (x86-64):** làm theo từng bước dưới đây.
 
 #### Linux: cài bản phát hành
