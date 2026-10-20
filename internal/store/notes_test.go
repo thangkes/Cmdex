@@ -173,3 +173,32 @@ func TestNotesBackup(t *testing.T) {
 		t.Errorf("after replace: %d notes", len(got))
 	}
 }
+
+// Masking rules are sealed in the database (a rule may be the secret
+// itself), travel in the clear inside a backup like notes, and are sealed
+// again with the other computer's key on import.
+func TestMaskRulesBackup(t *testing.T) {
+	a, _ := keyedStore(t)
+	rules := `[{"kind":"text","value":"Acme Corp"}]`
+	a.SetSealedSetting("mask.rules", rules)
+	if raw := a.Setting("mask.rules", ""); strings.Contains(raw, "Acme") {
+		t.Fatalf("stored in the clear: %q", raw)
+	}
+	b, err := a.ExportBackup("test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b.Settings["mask.rules"] != rules {
+		t.Fatalf("backup has %q", b.Settings["mask.rules"])
+	}
+	c, _ := keyedStore(t)
+	if _, err := c.ImportBackup(b, false); err != nil {
+		t.Fatal(err)
+	}
+	if raw := c.Setting("mask.rules", ""); strings.Contains(raw, "Acme") {
+		t.Errorf("imported in the clear: %q", raw)
+	}
+	if got := c.SealedSetting("mask.rules"); got != rules {
+		t.Errorf("imported %q", got)
+	}
+}

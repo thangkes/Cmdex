@@ -418,3 +418,26 @@ table.params input[type=text], table.params select { width: 100%; min-height: 32
 .term-menu button:disabled { color: var(--faint); cursor: default; }
 .term-menu small { color: var(--muted); }
 .term-menu hr { border: 0; border-top: 1px solid var(--line); margin: 4px 2px; }
+
+/* masked log panel (masklog.js) */
+.maskbtn { margin: 0 4px 4px; gap: 6px; }
+.maskbtn.on { border-color: var(--accent); color: var(--accent); }
+.dialog:has(.maskpanel) { width: min(780px, calc(100vw - 32px)); }
+.maskpanel { max-height: 66vh; overflow: auto; padding-right: 4px; }
+.maskpanel h3 { font-size: 13px; margin: 16px 0 6px; color: var(--soft-2); }
+.maskpanel p { margin: 4px 0; }
+.maskpanel .small { font-size: 12px; }
+.maskrow { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.maskcats { display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.maskrules { display: flex; flex-direction: column; gap: 4px; }
+.maskrule { display: flex; align-items: center; gap: 10px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 4px 6px 4px 10px; }
+.maskrule code { flex: 1 1 auto; overflow-wrap: anywhere; color: var(--code); }
+.maskrule .kind { font-size: 11px; color: var(--muted); min-width: 84px; }
+.maskadd { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 8px; }
+.maskadd input[type="text"], .maskadd select { background: var(--panel-2); border: 1px solid var(--line-2); border-radius: 8px; padding: 6px 9px; }
+.maskadd input[type="text"] { flex: 1 1 220px; }
+.maskadd input.short { flex: 0 1 110px; }
+.masktablebox { max-height: 220px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; margin-bottom: 6px; }
+.masktable { width: 100%; border-collapse: collapse; font-size: 12px; }
+.masktable th, .masktable td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+.masktable th { color: var(--muted); font-weight: 600; position: sticky; top: 0; background: var(--panel); }

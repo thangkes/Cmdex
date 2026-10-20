@@ -25,6 +25,7 @@
   Edit a starter command and it becomes your own copy, which updates leave alone; delete one and it stays deleted (**Restore starter commands** brings it back). Import and export packs as JSON.
 - **See your folders as a galaxy.** Work ▸ Map draws the terminal's folder as stars you can hover, fly into and act on; the trash is a black hole. See [Folder map](#folder-map).
 - **Keep notes like chat messages.** The bubble in the corner (Ctrl+Shift+N) holds formatted text, tasks, code with colours and images, encrypted in your library; find with match count, pin a note to a file on the map. See [Notes](#notes).
+- **Share a terminal without its secrets.** **Masked log** (above the terminal) opens a second window that shows the terminal's output with passwords, keys, IP and MAC addresses, serial numbers, user and host names masked (`IP-1`, `SN-2`, `••••••`), ready for screen sharing while Cmdex's own window stays protected. Select text there and choose **Mask this too** to add a rule. The output is kept in memory only and erased when you close the tab. See [Masked log](#masked-log).
 - **English and Vietnamese interface**, five color themes, self-update from GitHub releases (checksum-verified). **Settings** (the gear) can open Cmdex when you sign in to Windows or Linux; it is off until you turn it on.
 
 ### Install
@@ -200,6 +201,16 @@ The chat bubble in the corner (Ctrl+Shift+N) keeps notes like messages: text in 
 
 **Terminal copy and paste**: right-click in a terminal to copy the selection or everything it holds, paste, select all or clear the screen. Ctrl+C copies when text is selected and interrupts otherwise; pasting several lines asks first.
 
+### Masked log
+
+Click **Masked log** above a terminal. The panel shows what was masked in this tab ("4 masked: IP addresses 1, secrets 1…"), lets you turn kinds of values on or off (secrets, private keys, IP, MAC, e-mail, serial numbers, user names, host names; domain names are off by default because they catch a lot), and add your own rules:
+
+- **Text**: a piece of text, e.g. a customer's name;
+- **Word after**: the word that follows a keyword, e.g. `site-code`;
+- **Pattern (RE2)**: a regular expression; group 1, if there is one, is what gets masked.
+
+A rule gives a name (`LABEL-1`) or hides the value (`••••••`). Every log is masked again when a rule changes. **Open the shared window** to get a window that receives only masked text: share that one. Select text in it and choose **Mask this too**. The real values behind `IP-1`, `HOST-2`… are listed only in the main window, after you ask. Masking by patterns is never complete: check the shared window before you share it.
+
 ### Packs
 
 A pack is a JSON file of commands, explanations, synonyms and rules; texts may be plain strings or `{"en": "…", "vi": "…"}`. See [`packs/`](packs) for the starter packs. Library ▸ Import / Export moves your library between computers.
@@ -227,6 +238,7 @@ License: [MIT](LICENSE).
   Sửa một lệnh mẫu thì nó thành bản của riêng bạn, các bản cập nhật không đè lên; xoá thì nó không tự quay lại (nút **Khôi phục lệnh mẫu** đưa lại). Nhập/xuất gói lệnh dạng JSON.
 - **Thư mục thành thiên hà.** Làm việc ▸ Bản đồ vẽ thư mục của terminal thành các vì sao để rê chuột, bay vào và thao tác; thùng rác là một hố đen. Xem [Bản đồ thư mục](#bản-đồ-thư-mục).
 - **Ghi chú như nhắn tin.** Bong bóng chat ở góc (Ctrl+Shift+N) lưu chữ có định dạng, việc cần làm, code tô màu và ảnh, được mã hoá trong thư viện; tìm có đếm số kết quả, gắn ghi chú với file trên bản đồ. Xem [Ghi chú](#ghi-chú).
+- **Chia sẻ terminal mà không lộ bí mật.** **Log đã che** (phía trên terminal) mở một cửa sổ thứ hai hiện đầu ra của terminal với mật khẩu, khoá, địa chỉ IP và MAC, số serial, tên người dùng và tên máy đã được che (`IP-1`, `SN-2`, `••••••`), sẵn để chia sẻ màn hình trong khi cửa sổ chính của Cmdex vẫn được bảo vệ. Bôi đen chữ ở đó rồi chọn **Che thêm đoạn này** để thêm luật. Đầu ra chỉ nằm trong bộ nhớ và bị xoá khi đóng tab. Xem [Log đã che](#log-đã-che).
 - **Giao diện tiếng Việt và tiếng Anh**, 5 theme màu, tự cập nhật từ GitHub (có kiểm tra mã băm). **Cài đặt** (bánh răng) cho phép mở Cmdex khi đăng nhập Windows hoặc Linux; mặc định tắt cho đến khi bạn bật.
 
 ### Cài đặt
@@ -390,6 +402,16 @@ Mật khẩu luôn được hỏi, không bao giờ ghi trên dòng lệnh. Cấ
 Bong bóng chat ở góc (Ctrl+Shift+N) lưu ghi chú như tin nhắn: chữ ngôn ngữ nào cũng được, có **đậm**, *nghiêng*, __gạch chân__, ~~gạch ngang~~, ==tô sáng==, chữ màu, tiêu đề, danh sách, việc cần làm tick được, trích dẫn và khối code, cùng ảnh dán hoặc kéo thả vào. Lệnh và script trong ghi chú được tô màu (PowerShell, bash, cmd, Python, JavaScript, Go, SQL, JSON, YAML…) và chỉ sao chép được, không bao giờ chạy từ đó. Ô **Tìm** tô sáng mọi chỗ khớp, hiện số kết quả và dùng mũi tên để rà lần lượt (không phân biệt dấu và hoa thường). Ghi chú có thể gắn với file hay thư mục đang chọn trên bản đồ. Ghi chú và ảnh được mã hoá trong database của bạn và có trong bản sao lưu.
 
 **Sao chép và dán trong terminal**: chuột phải trong terminal để sao chép đoạn đang chọn hoặc toàn bộ nội dung, dán, chọn tất cả hoặc xoá màn hình. Ctrl+C sao chép khi đang bôi đen và ngắt lệnh khi không; dán nhiều dòng sẽ được hỏi lại trước.
+
+### Log đã che
+
+Bấm **Log đã che** phía trên terminal. Bảng này cho biết tab hiện tại đã che những gì ("đã che 4: địa chỉ IP 1, bí mật 1…"), cho bật/tắt từng loại (bí mật, khoá riêng, IP, MAC, email, số serial, tên người dùng, tên máy; tên miền mặc định tắt vì bắt quá nhiều), và thêm luật của bạn:
+
+- **Đoạn chữ**: một đoạn chữ, vd. tên khách hàng;
+- **Từ đứng sau**: từ đứng sau một từ khoá, vd. `site-code`;
+- **Mẫu (RE2)**: biểu thức chính quy; nhóm 1 (nếu có) là phần bị che.
+
+Mỗi luật đặt tên thay thế (`NHAN-1`) hoặc ẩn hẳn (`••••••`). Đổi luật là mọi log được che lại từ đầu. **Mở cửa sổ chia sẻ** để có một cửa sổ chỉ nhận chữ đã che: hãy chia sẻ cửa sổ đó. Bôi đen chữ trong đó rồi chọn **Che thêm đoạn này**. Giá trị thật đằng sau `IP-1`, `HOST-2`… chỉ hiện ở cửa sổ chính, khi bạn yêu cầu. Che theo mẫu không bao giờ đủ 100%: hãy xem lại cửa sổ chia sẻ trước khi chia sẻ.
 
 ### Gói công cụ
 

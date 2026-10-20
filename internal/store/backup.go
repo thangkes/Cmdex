@@ -96,6 +96,9 @@ func portableSetting(key string) bool {
 		!strings.HasPrefix(key, "map.") // this computer's folders (sealed with its key)
 }
 
+// sealedSettings are portable settings stored with SetSealedSetting.
+var sealedSettings = map[string]bool{"mask.rules": true}
+
 // ExportBackup returns the user's database.
 func (s *Store) ExportBackup(app string) (Backup, error) {
 	b := Backup{Format: BackupFormat, Version: BackupVersion, Exported: time.Now().UTC().Format(time.RFC3339), App: app,
@@ -212,6 +215,11 @@ func (s *Store) ExportBackup(app string) (Backup, error) {
 		var k, v string
 		set.Scan(&k, &v)
 		if portableSetting(k) {
+			if sealedSettings[k] { // carried in the clear, like notes: sealed again on import
+				if v, err = s.open("settings."+k, v); err != nil {
+					continue
+				}
+			}
 			b.Settings[k] = v
 		}
 	}
@@ -547,6 +555,9 @@ func (s *Store) importBackup(b Backup, replace bool) (BackupResult, error) {
 	for k, v := range b.Settings {
 		if !portableSetting(k) {
 			continue
+		}
+		if sealedSettings[k] {
+			v = s.seal("settings."+k, v)
 		}
 		if _, err := tx.Exec("INSERT INTO settings(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", k, v); err != nil {
 			return r, err

@@ -142,10 +142,48 @@ function registerSession(info, t0) {
   activate(info.id);
 }
 
+// ---- the tab's log, for the shared (masked) log window ----------------------
+
+// logLines hands the lines the cursor has left to Cmdex, which keeps them in
+// memory for the tab's life and shows them only masked (app_mask.go).
+// Reading xterm's buffer (not the raw bytes) gets lines as they look: with
+// backspaces, redraws and wrapping applied. Full-screen programs (vim, top,
+// less) draw on the other buffer and are not logged.
+function logLines(s) {
+  const buf = s.term.buffer.active;
+  if (buf.type !== "normal" || s.forgotten) return;
+  const cur = buf.baseY + buf.cursorY;
+  let end = cur; // the cursor's line is not finished, nor the line it continues
+  while (end > 0 && buf.getLine(end) && buf.getLine(end).isWrapped) end--;
+  let from = s.logMark && !s.logMark.isDisposed ? s.logMark.line : 0; // a cleared screen drops the mark
+  if (from > end) from = end;
+  if (from === end) return;
+  const lines = [];
+  for (let y = from; y < end; y++) {
+    const l = buf.getLine(y);
+    if (!l) continue;
+    const str = l.translateToString(true);
+    if (l.isWrapped && lines.length) lines[lines.length - 1] += str; else lines.push(str);
+  }
+  if (s.logMark) s.logMark.dispose();
+  s.logMark = s.term.registerMarker(end - cur);
+  const id = s.info.id;
+  for (let i = 0; i < lines.length; i += 1000) {
+    const part = lines.slice(i, i + 1000);
+    s.logQ = (s.logQ || Promise.resolve()).then(() => s.forgotten ? null : api.SessionLog(id, part)).catch(() => {});
+  }
+}
+
+function scheduleLog(s) {
+  if (s.logTimer) return;
+  s.logTimer = setTimeout(() => { s.logTimer = null; logLines(s); }, 150);
+}
+
 function onSessionData(id, b64) {
   const s = Work.sessions.get(id);
   const bytes = b64ToBytes(b64);
   if (s) s.term.write(bytes, () => {
+    scheduleLog(s);
     if (!s.starting) return;
     const buf = s.term.buffer.active;
     for (let i = 0; i < s.term.rows; i++) {
@@ -160,7 +198,7 @@ function onSessionClosed(id, msg) {
   const s = Work.sessions.get(id);
   if (!s) return;
   s.closed = true;
-  s.term.write("\r\n\x1b[2m" + t("term.ended") + (msg ? ": " + msg : "") + "\x1b[0m\r\n");
+  s.term.write("\r\n\x1b[2m" + t("term.ended") + (msg ? ": " + msg : "") + "\x1b[0m\r\n", () => logLines(s));
   renderTabs();
 }
 
@@ -170,6 +208,7 @@ function activate(id) {
   document.getElementById("termEmpty").hidden = Work.sessions.size > 0;
   const s = Work.sessions.get(id);
   if (s) requestAnimationFrame(() => { try { s.fit.fit(); } catch (e) {} s.term.focus(); });
+  api.LogActive(id || "").catch(() => {});
   renderTabs();
   refreshRight(); // results and explanations follow the session's platform (a Cisco switch…)
   renderBuilderButtons();
@@ -179,6 +218,11 @@ function closeSession(id) {
   const s = Work.sessions.get(id);
   if (!s) return;
   if (!s.closed) api.SessionClose(id).catch(() => {});
+  // everything that ran in the tab is forgotten with it
+  s.forgotten = true;
+  clearTimeout(s.logTimer);
+  api.LogForget(id).catch(() => {});
+  MaskLog.counts.delete(id);
   s.term.dispose();
   s.pane.remove();
   Work.sessions.delete(id);
@@ -245,8 +289,11 @@ function renderTabs() {
   }
   tabs.appendChild(h("div", { class: "tab" }, h("button", { type: "button", class: "add", title: t("term.newLocal"), "aria-label": t("term.newLocal"), onclick: openLocal }, "+")));
   const cur = Work.sessions.get(Work.active);
-  if (cur && !cur.closed) {
+  if (cur) {
     tabs.appendChild(h("span", { class: "tabspacer" }));
+    tabs.appendChild(maskButton());
+  }
+  if (cur && !cur.closed) {
     tabs.appendChild(h("button", { type: "button", class: "btn small secretsend", title: t("term.secretHint"), onclick: sendSecret }, t("term.secret")));
   }
 }
@@ -558,6 +605,7 @@ function initWork() {
   new ResizeObserver(() => { const s = Work.sessions.get(Work.active); if (s) try { s.fit.fit(); } catch (e) {} }).observe(document.getElementById("termhost"));
   window.runtime.EventsOn("session:data", onSessionData);
   window.runtime.EventsOn("session:closed", onSessionClosed);
+  initMaskLog();
   document.addEventListener("keydown", e => {
     if (e.ctrlKey && !e.shiftKey && !e.altKey && e.code === "KeyK") { e.preventDefault(); e.stopPropagation(); focusSearch(); }
   }, true);

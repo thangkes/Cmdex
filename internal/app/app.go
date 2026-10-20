@@ -9,6 +9,7 @@ import (
 	wr "github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"github.com/thangkes/cmdex/internal/collect"
+	"github.com/thangkes/cmdex/internal/mask"
 	"github.com/thangkes/cmdex/internal/store"
 	"github.com/thangkes/cmdex/internal/update"
 )
@@ -42,6 +43,11 @@ type App struct {
 	updating bool
 
 	mapRoot string // the folder on the map: file actions stay inside it
+
+	maskOnce sync.Once
+	mask     *maskState // terminal logs and the shared log window (app_mask.go)
+	maskerMu sync.Mutex
+	compiled *mask.Masker // the masking rules, compiled (nil: compile again)
 
 	locked    string // lockOpen, or what the database waits for (dbkey.go)
 	readyOnce sync.Once
@@ -99,6 +105,7 @@ func (a *App) ready() {
 }
 
 func (a *App) shutdown(context.Context) {
+	a.closeLogs()
 	a.mu.Lock()
 	for _, s := range a.sessions {
 		s.conn.Close()
@@ -151,6 +158,9 @@ func (a *App) Init() Info {
 func (a *App) SetSetting(key, value string) error {
 	if err := a.store.SetSetting(key, value); err != nil {
 		return err
+	}
+	if key == "lang" || key == "theme" {
+		a.viewerLook()
 	}
 	if key == "lang" {
 		return a.store.UseDefaults(a.activePacks(), value)

@@ -58,6 +58,7 @@ func (a *App) addSession(name, kind, platform string, open func(conn.Handlers) (
 			a.mu.Lock()
 			delete(a.sessions, id)
 			a.mu.Unlock()
+			a.endLog(id)
 			msg := ""
 			if err != nil {
 				msg = err.Error()
@@ -72,6 +73,7 @@ func (a *App) addSession(name, kind, platform string, open func(conn.Handlers) (
 	a.mu.Lock()
 	a.sessions[id] = &session{id: id, name: name, kind: kind, platform: platform, conn: c}
 	a.mu.Unlock()
+	a.newLog(id, kind)
 	return &SessionInfo{ID: id, Name: name, Kind: kind, Platform: platform}, nil
 }
 

@@ -57,6 +57,15 @@ var (
 	reKnownToken = regexp.MustCompile(`()(\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|glpat-[A-Za-z0-9_\-]{16,}|xox[abprs]-[A-Za-z0-9\-]{10,}|sk-[A-Za-z0-9_\-]{20,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_\-]{30,}|eyJ[A-Za-z0-9_\-]{8,}\.[A-Za-z0-9_\-]{8,}\.[A-Za-z0-9_\-]{8,})\b)`)
 )
 
+// secretPatterns are the secret shapes Redact masks, in order. Each has the
+// text before the value as group 1 and the value as group 2.
+var secretPatterns = []*regexp.Regexp{reURLPass, reURLToken, reBearer, reCookie, reSecure, reSSHPass, reMySQL, reUserPass,
+	reConfigSet, reNetUse, reLoginP, reFlagSecret, reKV, reDeviceSecret, reKnownToken}
+
+// SecretPatterns returns the secret shapes Redact masks (group 1: the text
+// before the value, group 2: the value), for masking terminal output.
+func SecretPatterns() []*regexp.Regexp { return secretPatterns }
+
 // Redact hides secrets in a command line. extra lists further option names
 // whose value is secret (from the user's "secret" rules), like "-k" or "--pin".
 func Redact(line string, extra []string) (string, bool) {
@@ -75,8 +84,7 @@ func Redact(line string, extra []string) (string, bool) {
 			return sub[1] + Mask + rest
 		})
 	}
-	for _, re := range []*regexp.Regexp{reURLPass, reURLToken, reBearer, reCookie, reSecure, reSSHPass, reMySQL, reUserPass,
-		reConfigSet, reNetUse, reLoginP, reFlagSecret, reKV, reDeviceSecret, reKnownToken} {
+	for _, re := range secretPatterns {
 		line = mask(re, line)
 	}
 	for _, name := range extra {

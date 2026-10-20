@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+
 	"embed"
 	"io/fs"
 	"log"
@@ -14,8 +15,10 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"github.com/wailsapp/wails/v2/pkg/options/linux"
 	"github.com/wailsapp/wails/v2/pkg/options/windows"
+	wr "github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"github.com/thangkes/cmdex/internal/app"
+	"github.com/thangkes/cmdex/internal/viewer"
 )
 
 //go:embed all:frontend
@@ -25,6 +28,10 @@ var frontend embed.FS
 var icon []byte
 
 func main() {
+	if len(os.Args) == 2 && os.Args[1] == "--viewer" {
+		runViewer()
+		return
+	}
 	if handled, code := app.CLI(os.Args[1:]); handled {
 		os.Exit(code)
 	}
@@ -57,4 +64,53 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+}
+
+// runViewer is the shared log window Cmdex starts (package viewer): the
+// same page files, viewer.html as its start page, nothing bound but the
+// bridge to the Cmdex that started it.
+func runViewer() {
+	assets, err := fs.Sub(frontend, "frontend")
+	if err != nil {
+		log.Fatal(err)
+	}
+	var ctx context.Context
+	ready := make(chan struct{})
+	b := viewer.NewBridge(os.Stdout,
+		func(name string, data ...any) { wr.EventsEmit(ctx, name, data...) },
+		func() { <-ready; wr.Quit(ctx) })
+	err = wails.Run(&options.App{
+		Title:            "Cmdex · log",
+		Width:            1000,
+		Height:           720,
+		MinWidth:         520,
+		MinHeight:        360,
+		BackgroundColour: &options.RGBA{R: 14, G: 18, B: 23, A: 255},
+		AssetServer:      &assetserver.Options{Assets: startPage{assets, "viewer.html"}},
+		OnStartup: func(c context.Context) {
+			ctx = c
+			close(ready)
+			go b.Serve(os.Stdin)
+		},
+		Bind:        []any{b},
+		DragAndDrop: &options.DragAndDrop{DisableWebViewDrop: true},
+		Windows:     &windows.Options{WebviewIsTransparent: false, WindowIsTranslucent: false},
+		Linux:       &linux.Options{Icon: icon, ProgramName: "cmdex"},
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+// startPage serves page as index.html.
+type startPage struct {
+	fs.FS
+	page string
+}
+
+func (p startPage) Open(name string) (fs.File, error) {
+	if name == "index.html" {
+		name = p.page
+	}
+	return p.FS.Open(name)
 }

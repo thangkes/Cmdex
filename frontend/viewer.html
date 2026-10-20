@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cmdex · log</title>
+<link rel="stylesheet" href="viewer.css">
+</head>
+<body>
+<header class="vtop">
+  <div class="vtabs" id="tabs" role="tablist"></div>
+  <label class="vfollow"><input type="checkbox" id="follow" checked> <span id="followLabel"></span></label>
+  <input type="search" id="find" autocomplete="off" spellcheck="false">
+  <span class="vcount" id="count"></span>
+</header>
+<div class="vstats" id="stats"></div>
+<main class="vlog" id="log" tabindex="0"></main>
+<div class="vempty" id="empty" hidden></div>
+<button type="button" class="vbottom" id="toBottom" hidden></button>
+<button type="button" class="vmask" id="maskBtn" hidden></button>
+<div class="vtoast" id="toast" role="status"></div>
+<footer class="vfoot" id="notice"></footer>
+<script src="themes.js"></script>
+<script src="viewer.js"></script>
+</body>
+</html>
