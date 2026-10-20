@@ -103,14 +103,6 @@ function termMenu(e, term) {
   menu.style.top = Math.max(4, y) + "px";
 }
 
-async function openExternal(uri) {
-  let u;
-  try { u = new URL(uri); } catch (e) { return; }
-  if (u.protocol !== "http:" && u.protocol !== "https:") return;
-  const ok = await confirmDialog(t("link.title"), t("link.text", { url: u.href }), t("link.open"));
-  if (ok) window.runtime.BrowserOpenURL(u.href);
-}
-
 function registerSession(info, t0) {
   const s = Object.assign(t0, { info, closed: false });
   // Some shells take seconds to show their prompt (Windows PowerShell 5):

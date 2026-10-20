@@ -24,19 +24,26 @@ func maskApp(t *testing.T) *App {
 // fakeViewer stands for the window process: what Cmdex sends arrives on
 // got, and requests can be written to send.
 func fakeViewer(t *testing.T, a *App) (got chan viewer.Msg, send *viewer.Writer) {
-	toV, fromMain := io.Pipe()
-	toMain, fromV := io.Pipe()
-	got = make(chan viewer.Msg, 100)
-	go viewer.Read(toV, 64<<20, func(m viewer.Msg) { got <- m })
-	done := make(chan struct{})
-	v := &viewerProc{out: viewer.NewWriter(fromMain), in: fromMain, wait: func() { <-done }, kill: func() {}}
+	v, got, send := fakeChild(t, "viewer", a.viewerMsg, a.viewerEnd)
 	m := a.maskState()
 	m.mu.Lock()
 	m.view = v
 	m.mu.Unlock()
-	go a.viewerLoop(v, toMain)
+	return got, send
+}
+
+// fakeChild stands for a window process of the given kind, with pipes in
+// place of its standard input and output.
+func fakeChild(t *testing.T, kind string, onMsg func(*childProc, viewer.Msg), onEnd func(*childProc)) (*childProc, chan viewer.Msg, *viewer.Writer) {
+	toV, fromMain := io.Pipe()
+	toMain, fromV := io.Pipe()
+	got := make(chan viewer.Msg, 100)
+	go viewer.Read(toV, 64<<20, func(m viewer.Msg) { got <- m })
+	done := make(chan struct{})
+	c := &childProc{kind: kind, out: viewer.NewWriter(fromMain), in: fromMain, wait: func() { <-done }, kill: func() {}}
+	go runChild(c, toMain, 32<<20, onMsg, onEnd)
 	t.Cleanup(func() { fromV.Close(); fromMain.Close(); close(done) })
-	return got, viewer.NewWriter(fromV)
+	return c, got, viewer.NewWriter(fromV)
 }
 
 func next(t *testing.T, got chan viewer.Msg, kind string) viewer.Msg {

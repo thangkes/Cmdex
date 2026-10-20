@@ -4,16 +4,48 @@
 // text is never read as HTML, so a note (or an imported backup) cannot run
 // anything in the page. Notes are stored encrypted (app_notes.go).
 
-const Notes = { list: [], query: "", open: false, attach: "", editing: 0, images: new Map(), preview: false, hits: [], hit: -1 };
+const Notes = { list: [], query: "", open: false, attach: "", editing: 0, images: new Map(), preview: false, hits: [], hit: -1, pin: "" };
+
+// Notes live in a window of their own (notes.html, a second Cmdex process
+// of the same session): the main window keeps only the bubble that opens it.
+// This file runs in both; notesWindow() tells which one it is in.
+function notesWindow() { return document.body.classList.contains("notes-window"); }
 
 const NOTE_COLORS = ["red", "orange", "yellow", "green", "blue", "purple"];
 const NOTE_IMAGE_MAX = 1600; // pixels: larger images are scaled down before saving
 
 function initNotes() {
+  if (!notesWindow()) { initNotesBubble(); return; }
+  initNotesPanel();
+}
+
+// initNotesBubble: the main window's bubble opens the notes window (or
+// brings it to the front), with Ctrl+Shift+N too.
+function initNotesBubble() {
   const fab = h("button", { type: "button", class: "notes-fab", id: "notesFab", "aria-expanded": "false", onclick: () => notesToggle() });
   // a fixed icon, written here (never note text)
-  fab.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"></path><path d="M8.5 11h7M8.5 14h4"></path></svg>';
-  const panel = h("section", { class: "notes-panel", id: "notesPanel", hidden: true, role: "dialog" },
+  fab.innerHTML = NOTES_ICON;
+  document.body.appendChild(fab);
+  document.addEventListener("keydown", e => {
+    if (e.ctrlKey && e.shiftKey && !e.altKey && e.code === "KeyN") { e.preventDefault(); notesToggle(); }
+  }, true);
+  window.runtime.EventsOn("notes:state", (on, failed) => {
+    Notes.open = !!on;
+    fab.setAttribute("aria-expanded", String(Notes.open));
+    if (failed) setStatus(t("notes.windowFail"), true);
+  });
+  window.runtime.EventsOn("notes:showPath", p => noteOpenPath(p));
+  relabelNotes();
+}
+
+// notesPinChanged tells the notes window what the map shows chosen (map.js).
+const notesPinChanged = debounce(() => { if (!notesWindow()) api.SetNotePin(noteMapPath()).catch(() => {}); }, 200);
+
+const NOTES_ICON = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"></path><path d="M8.5 11h7M8.5 14h4"></path></svg>';
+
+// initNotesPanel: the notes window is the panel, filling it.
+function initNotesPanel() {
+  const panel = h("section", { class: "notes-panel", id: "notesPanel", role: "main" },
     h("header", {},
       h("b", { id: "notesTitle" }),
       h("div", { class: "notes-find" },
@@ -22,10 +54,9 @@ function initNotes() {
         h("span", { class: "count", id: "notesCount", "aria-live": "polite" }),
         h("button", { type: "button", class: "arrow", id: "notesPrev", onclick: () => notesStep(-1) }, "▲"),
         h("button", { type: "button", class: "arrow", id: "notesNext", onclick: () => notesStep(1) }, "▼")),
-      h("button", { type: "button", class: "ic", id: "notesClose", onclick: () => notesToggle(false) }, "×")),
+      h("button", { type: "button", class: "ic", id: "notesClose", onclick: () => window.runtime.Quit() }, "×")),
     h("div", { class: "notes-list", id: "notesList" }),
     h("div", { class: "notes-compose", id: "notesCompose" }));
-  document.body.appendChild(fab);
   document.body.appendChild(panel);
   const search = document.getElementById("notesSearch");
   search.oninput = debounce(() => { Notes.query = search.value; Notes.hit = -1; notesFind(true); }, 150);
@@ -33,24 +64,29 @@ function initNotes() {
     if (e.key === "Enter") { e.preventDefault(); notesStep(e.shiftKey ? -1 : 1); }
     if (e.key === "Escape" && search.value) { e.preventDefault(); e.stopPropagation(); search.value = ""; Notes.query = ""; notesFind(); }
   };
-  panel.addEventListener("keydown", e => { if (e.key === "Escape" && !Notes.editing) { e.stopPropagation(); notesToggle(false); } });
   // images dropped anywhere on the panel join the note being written
   panel.addEventListener("dragover", e => { if ([...e.dataTransfer.items].some(i => i.kind === "file")) { e.preventDefault(); panel.classList.add("drop"); } });
   panel.addEventListener("dragleave", () => panel.classList.remove("drop"));
   panel.addEventListener("drop", e => { e.preventDefault(); panel.classList.remove("drop"); notesAddFiles([...e.dataTransfer.files]); });
   document.addEventListener("keydown", e => {
-    if (e.ctrlKey && e.shiftKey && !e.altKey && e.code === "KeyN") { e.preventDefault(); notesToggle(); }
-    if (Notes.open && (e.ctrlKey || e.metaKey) && !e.shiftKey && e.code === "KeyF" && panel.contains(document.activeElement)) { e.preventDefault(); search.focus(); search.select(); }
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.code === "KeyF") { e.preventDefault(); search.focus(); search.select(); }
   }, true);
+  // notes changed in the main window meanwhile (a backup imported): read them again
+  window.addEventListener("focus", () => { if (!Notes.editing) notesLoad(false); });
+  Notes.open = true;
   drawCompose();
   relabelNotes();
+  notesLoad(true);
+  setTimeout(() => { const ta = document.querySelector("#notesCompose textarea"); if (ta) ta.focus(); }, 30);
 }
 
 function relabelNotes() {
   const fab = document.getElementById("notesFab");
-  if (!fab) return;
-  fab.title = t("notes.open") + " (Ctrl+Shift+N)";
-  fab.setAttribute("aria-label", t("notes.open"));
+  if (fab) {
+    fab.title = t("notes.open") + " (Ctrl+Shift+N)";
+    fab.setAttribute("aria-label", t("notes.open"));
+  }
+  if (!document.getElementById("notesPanel")) return;
   document.getElementById("notesTitle").textContent = t("notes.title");
   document.getElementById("notesSearch").placeholder = t("notes.search");
   document.getElementById("notesPrev").title = t("notes.findPrev") + " (Shift+Enter)";
@@ -61,11 +97,9 @@ function relabelNotes() {
   if (Notes.open) drawNotes();
 }
 
-function notesToggle(open) {
-  Notes.open = open === undefined ? !Notes.open : open;
-  document.getElementById("notesPanel").hidden = !Notes.open;
-  document.getElementById("notesFab").setAttribute("aria-expanded", String(Notes.open));
-  if (Notes.open) { notesLoad(true); setTimeout(() => { const ta = document.querySelector("#notesCompose textarea"); if (ta) ta.focus(); }, 30); }
+// notesToggle opens the notes window, or brings it to the front.
+async function notesToggle() {
+  try { await api.OpenNotes(); } catch (e) { setStatus(t("notes.windowFail") + ": " + errText(e), true); }
 }
 
 async function notesLoad(toEnd) {
@@ -234,6 +268,7 @@ function baseName(p) { const parts = p.split(/[\\/]/).filter(Boolean); return pa
 
 // noteOpenPath shows a note's file or folder on the map.
 async function noteOpenPath(p) {
+  if (notesWindow()) { api.ShowNotePath(p).catch(e => setStatus(errText(e), true)); return; } // the map is in the main window
   showView("work");
   Work.forced = "map";
   refreshRight();
@@ -429,6 +464,7 @@ function drawCompose() {
 
 // noteMapPath is what the map shows chosen (or its centre), to pin a note to.
 function noteMapPath() {
+  if (notesWindow()) return Notes.pin; // sent by the main window
   if (typeof FMap === "undefined" || !FMap.m) return "";
   return FMap.sel && !FMap.sel.data.more ? mapPath(FMap.sel) : FMap.m.root;
 }

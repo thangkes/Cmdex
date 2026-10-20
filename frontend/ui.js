@@ -85,6 +85,16 @@ function dialog(title, body, buttons) {
   });
 }
 
+// openExternal opens an http(s) link in the system browser, after asking:
+// a page from elsewhere never opens inside Cmdex.
+async function openExternal(uri) {
+  let u;
+  try { u = new URL(uri); } catch (e) { return; }
+  if (u.protocol !== "http:" && u.protocol !== "https:") return;
+  const ok = await confirmDialog(t("link.title"), t("link.text", { url: u.href }), t("link.open"));
+  if (ok) window.runtime.BrowserOpenURL(u.href);
+}
+
 function confirmDialog(title, text, okLabel, danger) {
   return dialog(title, h("p", { class: "soft" }, text), [
     { label: t("common.cancel"), value: false },

@@ -390,6 +390,8 @@
   "map.group.hint": "Ctrl+bấm để thêm hoặc bỏ một ngôi sao. Shift+kéo trên nền trời để chọn mọi sao trong khung. Esc để bỏ chọn.",
   "map.group.trashed": "{n} mục đã bị hố đen nuốt (vào Thùng rác).",
   "map.group.partial": "{ok} mục đã vào hố đen; {bad} mục không được: {err}",
+  "notes.windowTitle": "Cmdex · ghi chú",
+  "notes.windowFail": "Không mở được cửa sổ ghi chú",
   "notes.title": "Ghi chú",
   "notes.open": "Ghi chú",
   "notes.close": "Đóng",

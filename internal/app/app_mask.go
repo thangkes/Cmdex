@@ -4,13 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
-	"os/exec"
 	"os/user"
+	"runtime"
 	"strings"
 	"sync"
-	"time"
 	"unicode/utf8"
 
 	"github.com/thangkes/cmdex/internal/mask"
@@ -43,15 +41,7 @@ type maskState struct {
 	counts map[string]int // labels: kind -> last number
 	masker *mask.Masker
 	active string
-	view   *viewerProc
-}
-
-type viewerProc struct {
-	out   *viewer.Writer
-	in    io.Closer // its input: closing it closes the window
-	wait  func()    // returns when it has ended
-	kill  func()
-	ready bool
+	view   *childProc // the shared log window
 }
 
 func (a *App) maskState() *maskState {
@@ -340,39 +330,13 @@ func (a *App) OpenViewer() error {
 	if m.view != nil {
 		return nil
 	}
-	exe, err := os.Executable()
+	c, err := startChild("viewer", 64<<10, a.viewerMsg, a.viewerEnd)
 	if err != nil {
 		return err
 	}
-	cmd := exec.Command(exe, "--viewer")
-	cmd.Env = viewerEnv()
-	in, err := cmd.StdinPipe()
-	if err != nil {
-		return err
-	}
-	out, err := cmd.StdoutPipe()
-	if err != nil {
-		return err
-	}
-	if err := cmd.Start(); err != nil {
-		return err
-	}
-	m.view = &viewerProc{out: viewer.NewWriter(in), in: in, wait: func() { cmd.Wait() }, kill: func() { cmd.Process.Kill() }}
-	go a.viewerLoop(m.view, out)
+	m.view = c
 	a.emit("viewer:state", true)
 	return nil
-}
-
-// viewerEnv is the environment of the window: nothing that points it at
-// the database (it never opens one).
-func viewerEnv() []string {
-	var env []string
-	for _, e := range os.Environ() {
-		if !strings.HasPrefix(strings.ToUpper(e), "CMDEX_") {
-			env = append(env, e)
-		}
-	}
-	return env
 }
 
 // CloseViewer closes the shared log window.
@@ -382,39 +346,35 @@ func (a *App) CloseViewer() {
 	v := m.view
 	m.mu.Unlock()
 	if v != nil {
-		v.in.Close() // it closes when its input ends
-		go func() {
-			time.Sleep(3 * time.Second)
-			v.kill()
-		}()
+		v.close()
 	}
 }
 
-func (a *App) viewerLoop(v *viewerProc, out io.Reader) {
-	viewer.Read(out, 64<<10, func(msg viewer.Msg) {
-		switch msg.T {
-		case "ready":
-			m := a.maskState()
-			m.mu.Lock()
-			v.ready = true
-			m.hello(a)
-			m.sendTabs()
-			for _, id := range m.order {
-				l := m.logs[id]
-				m.send(viewer.Msg{T: "reset", Tab: id, Lines: l.masked, Stats: l.st.Stats(), Total: l.st.Total()})
-			}
-			m.mu.Unlock()
-		case "mask":
-			text := strings.TrimSpace(msg.Text)
-			if text == "" || utf8.RuneCountInString(text) > viewer.MaxText || strings.ContainsAny(text, "\r\n") {
-				return
-			}
-			if err := a.AddMaskRule(mask.Rule{Kind: "text", Value: text}); err == nil {
-				a.emit("mask:added")
-			}
+func (a *App) viewerMsg(v *childProc, msg viewer.Msg) {
+	switch msg.T {
+	case "ready":
+		m := a.maskState()
+		m.mu.Lock()
+		v.ready = true
+		m.hello(a)
+		m.sendTabs()
+		for _, id := range m.order {
+			l := m.logs[id]
+			m.send(viewer.Msg{T: "reset", Tab: id, Lines: l.masked, Stats: l.st.Stats(), Total: l.st.Total()})
 		}
-	})
-	v.wait()
+		m.mu.Unlock()
+	case "mask":
+		text := strings.TrimSpace(msg.Text)
+		if text == "" || utf8.RuneCountInString(text) > viewer.MaxText || strings.ContainsAny(text, "\r\n") {
+			return
+		}
+		if err := a.AddMaskRule(mask.Rule{Kind: "text", Value: text}); err == nil {
+			a.emit("mask:added")
+		}
+	}
+}
+
+func (a *App) viewerEnd(v *childProc) {
 	m := a.maskState()
 	m.mu.Lock()
 	if m.view == v {
@@ -433,8 +393,8 @@ func (m *maskState) send(msg viewer.Msg) {
 	if msg.Lines == nil && (msg.T == "reset") {
 		msg.Lines = []string{}
 	}
-	if err := m.view.out.Send(msg); err != nil {
-		m.view.ready = false // gone: viewerLoop clears it
+	if err := m.view.send(msg); err != nil {
+		m.view.ready = false // gone: viewerEnd clears it
 	}
 }
 
@@ -447,20 +407,26 @@ func (m *maskState) sendTabs() {
 	m.send(viewer.Msg{T: "tabs", Tabs: tabs})
 }
 
-func (m *maskState) hello(a *App) {
-	lang, theme := systemLang(), "graphite"
+func (m *maskState) hello(a *App) { m.send(a.helloMsg(false)) }
+
+// helloMsg is the language and theme a window starts with (and protection,
+// for a window that holds private things).
+func (a *App) helloMsg(protect bool) viewer.Msg {
+	h := viewer.Msg{T: "hello", Lang: systemLang(), Theme: "graphite", OS: runtime.GOOS}
 	if a.store != nil {
-		lang, theme = a.lang(), a.store.Setting("theme", "graphite")
+		h.Lang, h.Theme = a.lang(), a.store.Setting("theme", "graphite")
+		h.Protect = protect && a.store.Setting("protect.capture", "1") == "1"
 	}
-	m.send(viewer.Msg{T: "hello", Lang: lang, Theme: theme})
+	return h
 }
 
-// viewerLook passes a language or theme change on.
-func (a *App) viewerLook() {
+// windowsLook passes a language or theme change to the other windows.
+func (a *App) windowsLook() {
 	m := a.maskState()
 	m.mu.Lock()
 	m.hello(a)
 	m.mu.Unlock()
+	a.notesSend(a.helloMsg(true))
 }
 
 // closeLogs forgets every log and closes the window (shutdown).

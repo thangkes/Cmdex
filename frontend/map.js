@@ -168,6 +168,7 @@ async function mapLoad(path, keepSel) {
     const want = keepSel || "";
     FMap.sel = want ? mapByPath(want) : null;
     FMap.trace = FMap.sel;
+    notesPinChanged();
     document.getElementById("mapSearch").value = "";
     mapDraw(centreChanged);
     mapDrawCard();
@@ -204,6 +205,7 @@ function mapTrace(d) {
 
 function mapSelect(d) {
   FMap.sel = d;
+  notesPinChanged();
   FMap.renaming = FMap.confirming = false;
   Galaxy.unhold();
   mapTrace(d);

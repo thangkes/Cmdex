@@ -49,6 +49,10 @@ type App struct {
 	maskerMu sync.Mutex
 	compiled *mask.Masker // the masking rules, compiled (nil: compile again)
 
+	notesMu  sync.Mutex
+	notesWin *childProc // the notes window (app_notes.go)
+	notePin  string     // what the map shows chosen, for pinning a note
+
 	locked    string // lockOpen, or what the database waits for (dbkey.go)
 	readyOnce sync.Once
 }
@@ -106,6 +110,7 @@ func (a *App) ready() {
 
 func (a *App) shutdown(context.Context) {
 	a.closeLogs()
+	a.closeNotes()
 	a.mu.Lock()
 	for _, s := range a.sessions {
 		s.conn.Close()
@@ -160,7 +165,7 @@ func (a *App) SetSetting(key, value string) error {
 		return err
 	}
 	if key == "lang" || key == "theme" {
-		a.viewerLook()
+		a.windowsLook()
 	}
 	if key == "lang" {
 		return a.store.UseDefaults(a.activePacks(), value)

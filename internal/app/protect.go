@@ -3,6 +3,8 @@ package app
 import (
 	"context"
 	"time"
+
+	"github.com/thangkes/cmdex/internal/viewer"
 )
 
 // ProtectionState is what the page shows about screen-capture protection.
@@ -31,6 +33,7 @@ func (a *App) SetProtection(on bool) (ProtectionState, error) {
 		return a.Protection(), err
 	}
 	err := setCaptureProtection(on)
+	a.notesSend(viewer.Msg{T: "protect", Protect: on})
 	return a.Protection(), err
 }
 
@@ -53,6 +56,23 @@ func DomReady(a *App, _ context.Context) {
 	go func() {
 		for i := 0; i < 40; i++ {
 			if setCaptureProtection(true) == nil && captureProtected() {
+				return
+			}
+			time.Sleep(250 * time.Millisecond)
+		}
+	}()
+}
+
+// ProtectWindows applies screen-capture protection to the windows of this
+// process: Cmdex's notes window, which Cmdex tells whether to protect. Like
+// DomReady, it retries while the window is being created.
+func ProtectWindows(on bool) {
+	if !captureSupported {
+		return
+	}
+	go func() {
+		for i := 0; i < 40; i++ {
+			if setCaptureProtection(on) == nil && (!on || captureProtected()) {
 				return
 			}
 			time.Sleep(250 * time.Millisecond)

@@ -390,6 +390,8 @@
   "map.group.hint": "Ctrl+click adds or removes a star. Shift+drag on the sky chooses every star in a box. Esc clears.",
   "map.group.trashed": "{n} items went into the black hole (the trash).",
   "map.group.partial": "{ok} went into the black hole; {bad} could not: {err}",
+  "notes.windowTitle": "Cmdex · notes",
+  "notes.windowFail": "The notes window could not be opened",
   "notes.title": "Notes",
   "notes.open": "Notes",
   "notes.close": "Close",

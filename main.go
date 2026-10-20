@@ -28,8 +28,8 @@ var frontend embed.FS
 var icon []byte
 
 func main() {
-	if len(os.Args) == 2 && os.Args[1] == "--viewer" {
-		runViewer()
+	if w, ok := windowKinds[argOne()]; ok {
+		runWindow(w)
 		return
 	}
 	if handled, code := app.CLI(os.Args[1:]); handled {
@@ -66,27 +66,52 @@ func main() {
 	}
 }
 
-// runViewer is the shared log window Cmdex starts (package viewer): the
-// same page files, viewer.html as its start page, nothing bound but the
-// bridge to the Cmdex that started it.
-func runViewer() {
+// window is one of Cmdex's other windows (package viewer).
+type window struct {
+	page, title   string
+	width, height int
+	minW, minH    int
+	protect       bool // follows Cmdex's screen-capture protection
+}
+
+var windowKinds = map[string]window{
+	"--viewer": {page: "viewer.html", title: "Cmdex · log", width: 1000, height: 720, minW: 520, minH: 360},
+	"--notes":  {page: "notes.html", title: "Cmdex · notes", width: 480, height: 760, minW: 360, minH: 420, protect: true},
+}
+
+// runWindow runs a window Cmdex starts: the same page files with the
+// window's own start page, nothing bound but the bridge to the Cmdex that
+// started it (which answers what the page may ask).
+func runWindow(w window) {
 	assets, err := fs.Sub(frontend, "frontend")
 	if err != nil {
 		log.Fatal(err)
 	}
 	var ctx context.Context
 	ready := make(chan struct{})
-	b := viewer.NewBridge(os.Stdout,
-		func(name string, data ...any) { wr.EventsEmit(ctx, name, data...) },
-		func() { <-ready; wr.Quit(ctx) })
+	h := viewer.Hooks{
+		Emit: func(name string, data ...any) { wr.EventsEmit(ctx, name, data...) },
+		Quit: func() { <-ready; wr.Quit(ctx) },
+		Focus: func() {
+			<-ready
+			wr.WindowUnminimise(ctx)
+			wr.WindowShow(ctx)
+			wr.WindowSetAlwaysOnTop(ctx, true) // to the front, then back to normal
+			wr.WindowSetAlwaysOnTop(ctx, false)
+		},
+	}
+	if w.protect {
+		h.Protect = app.ProtectWindows
+	}
+	b := viewer.NewBridge(os.Stdout, h)
 	err = wails.Run(&options.App{
-		Title:            "Cmdex · log",
-		Width:            1000,
-		Height:           720,
-		MinWidth:         520,
-		MinHeight:        360,
+		Title:            w.title,
+		Width:            w.width,
+		Height:           w.height,
+		MinWidth:         w.minW,
+		MinHeight:        w.minH,
 		BackgroundColour: &options.RGBA{R: 14, G: 18, B: 23, A: 255},
-		AssetServer:      &assetserver.Options{Assets: startPage{assets, "viewer.html"}},
+		AssetServer:      &assetserver.Options{Assets: startPage{assets, w.page}},
 		OnStartup: func(c context.Context) {
 			ctx = c
 			close(ready)
@@ -113,4 +138,11 @@ func (p startPage) Open(name string) (fs.File, error) {
 		name = p.page
 	}
 	return p.FS.Open(name)
+}
+
+func argOne() string {
+	if len(os.Args) == 2 {
+		return os.Args[1]
+	}
+	return ""
 }

@@ -23,6 +23,16 @@ import (
 	"github.com/thangkes/cmdex/internal/app"
 )
 
+// notesShim stands in for the notes window's bridge (internal/viewer): its
+// calls reach the same App methods.
+const notesShim = `<script>
+window.go.viewer = { Bridge: {
+  Call: (name, args) => fetch("/bridge/" + name, { method: "POST", headers: { "Content-Type": "application/json", "X-Cmdex-Token": CMDEX_TOKEN }, body: args })
+    .then(async r => { const j = await r.json(); if (!r.ok) throw new Error(j.error); return JSON.stringify(j.result); }),
+  Ready: () => window.go.app.App.Setting("lang", "en").then(lang => setTimeout(() => (handlers.view || []).forEach(f => f({ t: "hello", lang, theme: "graphite", os: navigator.platform.startsWith("Win") ? "windows" : "linux" })), 0)),
+} };
+</script>`
+
 // The bridge runs commands on this computer, so only the page served here may
 // use it: every call carries a random token that only this page knows (a
 // web page elsewhere cannot read it), the Host header must be this address
@@ -172,11 +182,16 @@ func main() {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("Content-Security-Policy", "frame-ancestors 'none'")
-		if r.URL.Path != "/" && r.URL.Path != "/index.html" {
+		name, before := "index.html", `<script src="vendor/xterm.js"></script>`
+		switch r.URL.Path {
+		case "/", "/index.html":
+		case "/notes.html": // the notes window
+			name, before = "notes.html", `<script src="themes.js"></script>`
+		default:
 			files.ServeHTTP(w, r)
 			return
 		}
-		b, err := http.Dir(*dir).Open("index.html")
+		b, err := http.Dir(*dir).Open(name)
 		if err != nil {
 			http.Error(w, err.Error(), 500)
 			return
@@ -185,7 +200,10 @@ func main() {
 		page, _ := io.ReadAll(b)
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		js := strings.Replace(shim, "{{TOKEN}}", token, 1)
-		w.Write([]byte(strings.Replace(string(page), "<script src=\"vendor/xterm.js\"></script>", js+"\n<script src=\"vendor/xterm.js\"></script>", 1)))
+		if name == "notes.html" {
+			js += notesShim
+		}
+		w.Write([]byte(strings.Replace(string(page), before, js+"\n"+before, 1)))
 	})
 	log.Printf("Cmdex page on http://%s", *addr)
 	log.Fatal(http.ListenAndServe(*addr, mux))

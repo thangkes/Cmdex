@@ -441,3 +441,8 @@ table.params input[type=text], table.params select { width: 100%; min-height: 32
 .masktable { width: 100%; border-collapse: collapse; font-size: 12px; }
 .masktable th, .masktable td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
 .masktable th { color: var(--muted); font-weight: 600; position: sticky; top: 0; background: var(--panel); }
+
+/* the notes window (notes.html): the panel fills it */
+body.notes-window { display: flex; flex-direction: column; height: 100vh; }
+body.notes-window .notes-panel { position: static; order: 0; flex: 1 1 auto; width: auto; height: auto; min-height: 0; border: 0; border-radius: 0; box-shadow: none; }
+body.notes-window .notes-status { order: 1; }
